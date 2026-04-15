@@ -1,0 +1,58 @@
+[
+  {
+    "keyword": "แมว",
+    "tags": ["story", "animal"],
+    "primaryNumbers": ["1", "4"],
+    "secondaryNumbers": ["14", "41", "114"],
+    "reasonTemplate": "คำว่า \"แมว\" ถูก map ไปที่เลข 1 และ 4"
+  },
+  {
+    "keyword": "รถ",
+    "tags": ["story", "vehicle"],
+    "primaryNumbers": ["4", "8"],
+    "secondaryNumbers": ["48", "84", "448"],
+    "reasonTemplate": "สิ่งที่เกี่ยวกับรถถูกใช้เป็นฐานเลข 4 และ 8"
+  },
+  {
+    "keyword": "บ้าน",
+    "tags": ["story", "place"],
+    "primaryNumbers": ["2", "7"],
+    "secondaryNumbers": ["27", "72", "227"],
+    "reasonTemplate": "คำว่า \"บ้าน\" มักใช้แตกเลข 2 และ 7"
+  },
+  {
+    "keyword": "ทะเบียน",
+    "tags": ["story", "vehicle"],
+    "primaryNumbers": ["5", "9"],
+    "secondaryNumbers": ["59", "95", "559"],
+    "reasonTemplate": "คำว่า \"ทะเบียน\" ทำให้ระบบเน้นเลข 5 และ 9"
+  },
+  {
+    "keyword": "สีดำ",
+    "tags": ["story", "color"],
+    "primaryNumbers": ["0", "6"],
+    "secondaryNumbers": ["06", "60", "606"],
+    "reasonTemplate": "สีดำถูกใช้เป็นตัวตีความเสริมไปที่เลข 0 และ 6"
+  },
+  {
+    "keyword": "สีแดง",
+    "tags": ["story", "color"],
+    "primaryNumbers": ["3", "8"],
+    "secondaryNumbers": ["38", "83", "338"],
+    "reasonTemplate": "สีแดงถูกใช้เป็นสัญลักษณ์เลข 3 และ 8"
+  },
+  {
+    "keyword": "งู",
+    "tags": ["story", "animal"],
+    "primaryNumbers": ["5", "6"],
+    "secondaryNumbers": ["56", "65", "506"],
+    "reasonTemplate": "คำว่า \"งู\" ยังคงเป็นเลขเด่น 5 และ 6 ในโหมดสิ่งที่พบเจอ"
+  },
+  {
+    "keyword": "ใบเสร็จ",
+    "tags": ["story", "object"],
+    "primaryNumbers": ["2", "8"],
+    "secondaryNumbers": ["28", "82", "288"],
+    "reasonTemplate": "คำว่า \"ใบเสร็จ\" จะดันเลขที่พบในข้อความและเสริมด้วย 2 กับ 8"
+  }
+]
