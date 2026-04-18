@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createElement, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   BookOpenText,
@@ -14,6 +14,7 @@ import {
   Settings2,
   Sparkles,
   Terminal,
+  Trophy,
 } from 'lucide-react'
 import dreamRules from './data/dream-rules.json'
 import symbolRules from './data/symbol-rules.json'
@@ -40,16 +41,59 @@ const DEFAULT_REFRESH_MINUTES = 10
 const MIN_REFRESH_MINUTES = 1
 const MAX_REFRESH_MINUTES = 120
 
+const PRIZE_CATALOG = {
+  prizeFirst: { label: 'รางวัลที่ 1', amount: 6000000 },
+  prizeFirstNear: { label: 'รางวัลข้างเคียงรางวัลที่ 1', amount: 100000 },
+  prizeSecond: { label: 'รางวัลที่ 2', amount: 200000 },
+  prizeThird: { label: 'รางวัลที่ 3', amount: 80000 },
+  prizeFourth: { label: 'รางวัลที่ 4', amount: 40000 },
+  prizeFifth: { label: 'รางวัลที่ 5', amount: 20000 },
+  runningNumberFrontThree: { label: 'เลขหน้า 3 ตัว', amount: 4000, matchType: 'prefix' },
+  runningNumberBackThree: { label: 'เลขท้าย 3 ตัว', amount: 4000, matchType: 'suffix' },
+  runningNumberBackTwo: { label: 'เลขท้าย 2 ตัว', amount: 2000, matchType: 'suffix' },
+}
+
 const NAV_ITEMS = [
   { id: 'overview', label: 'ภาพรวม', icon: Terminal },
   { id: 'quick-pick', label: 'สุ่มเลขเร็ว', icon: Sparkles },
   { id: 'dream-number', label: 'ตีเลขจากฝัน', icon: BookOpenText },
   { id: 'story-number', label: 'ตีเลขจากสิ่งที่เจอ', icon: Radar },
+  { id: 'prize-checker', label: 'ตรวจหวย', icon: Trophy },
   { id: 'results-feed', label: 'ผลย้อนหลัง', icon: History },
 ]
 
 function findNumbersById(items, id) {
   return items.find((item) => item.id === id)?.number ?? []
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('th-TH', {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function normalizePrizeAmount(item, fallbackAmount) {
+  const value = Number(item?.reward ?? item?.amount ?? item?.prize ?? fallbackAmount)
+  return Number.isFinite(value) ? value : fallbackAmount
+}
+
+function normalizePrizeItem(item) {
+  const fallback = PRIZE_CATALOG[item.id] ?? {}
+
+  return {
+    id: item.id,
+    label: fallback.label ?? item.name ?? item.id,
+    amount: normalizePrizeAmount(item, fallback.amount ?? 0),
+    numbers: Array.isArray(item.number) ? item.number.map((number) => String(number)) : [],
+    matchType: fallback.matchType ?? 'exact',
+  }
+}
+
+function buildAllPrizes(payload) {
+  const prizeItems = (payload.prizes ?? []).map(normalizePrizeItem)
+  const runningItems = (payload.runningNumbers ?? []).map(normalizePrizeItem)
+
+  return [...prizeItems, ...runningItems].filter((item) => item.numbers.length > 0)
 }
 
 function normalizeResultDetail(payload, drawId) {
@@ -65,7 +109,104 @@ function normalizeResultDetail(payload, drawId) {
     last2,
     front3,
     back3,
+    allPrizes: buildAllPrizes(payload),
   }
+}
+
+function getFallbackPrizeItems(draw) {
+  if (!draw) {
+    return []
+  }
+
+  return [
+    {
+      id: 'prizeFirst',
+      label: PRIZE_CATALOG.prizeFirst.label,
+      amount: PRIZE_CATALOG.prizeFirst.amount,
+      numbers: draw.firstPrize && draw.firstPrize !== '-' ? [draw.firstPrize] : [],
+      matchType: 'exact',
+    },
+    {
+      id: 'runningNumberFrontThree',
+      label: PRIZE_CATALOG.runningNumberFrontThree.label,
+      amount: PRIZE_CATALOG.runningNumberFrontThree.amount,
+      numbers: draw.front3 ?? [],
+      matchType: 'prefix',
+    },
+    {
+      id: 'runningNumberBackThree',
+      label: PRIZE_CATALOG.runningNumberBackThree.label,
+      amount: PRIZE_CATALOG.runningNumberBackThree.amount,
+      numbers: draw.back3 ?? [],
+      matchType: 'suffix',
+    },
+    {
+      id: 'runningNumberBackTwo',
+      label: PRIZE_CATALOG.runningNumberBackTwo.label,
+      amount: PRIZE_CATALOG.runningNumberBackTwo.amount,
+      numbers: draw.last2 && draw.last2 !== '-' ? [draw.last2] : [],
+      matchType: 'suffix',
+    },
+  ].filter((item) => item.numbers.length > 0)
+}
+
+function checkTicketAgainstDraw(ticketNumber, draw) {
+  const normalizedTicket = ticketNumber.replace(/[^\d]/g, '').slice(0, 6)
+
+  if (normalizedTicket.length !== 6 || !draw) {
+    return {
+      normalizedTicket,
+      matches: [],
+      totalPrize: 0,
+      checkedPrizeCount: 0,
+    }
+  }
+
+  const prizeItems = draw.allPrizes?.length > 0 ? draw.allPrizes : getFallbackPrizeItems(draw)
+  const matches = prizeItems.flatMap((item) =>
+    item.numbers
+      .filter((number) => {
+        if (item.matchType === 'prefix') {
+          return normalizedTicket.startsWith(number)
+        }
+
+        if (item.matchType === 'suffix') {
+          return normalizedTicket.endsWith(number)
+        }
+
+        return normalizedTicket === number
+      })
+      .map((number) => ({
+        id: `${item.id}-${number}`,
+        label: item.label,
+        number,
+        amount: item.amount,
+      })),
+  )
+
+  return {
+    normalizedTicket,
+    matches,
+    totalPrize: matches.reduce((sum, item) => sum + item.amount, 0),
+    checkedPrizeCount: prizeItems.reduce((sum, item) => sum + item.numbers.length, 0),
+  }
+}
+
+function parseTicketNumbers(value) {
+  const chunks = value.match(/\d+/g) ?? []
+  const tickets = chunks.flatMap((chunk) => {
+    if (chunk.length === 6) {
+      return [chunk]
+    }
+
+    if (chunk.length > 6) {
+      return chunk.match(/\d{6}/g) ?? []
+    }
+
+    return []
+  })
+
+  return [...new Set(tickets)]
 }
 
 function getCachedResults() {
@@ -195,6 +336,8 @@ function App() {
   const [quickForm, setQuickForm] = useState(DEFAULT_QUICK_FORM)
   const [dreamText, setDreamText] = useState('')
   const [storyText, setStoryText] = useState('')
+  const [ticketInput, setTicketInput] = useState('')
+  const [selectedDrawDate, setSelectedDrawDate] = useState('')
   const [recentSlips, setRecentSlips] = useState(() => readStorage(STORAGE_KEYS.recentGenerations, []))
   const [savedSlips, setSavedSlips] = useState(() => readStorage(STORAGE_KEYS.savedSlips, []))
   const [message, setMessage] = useState('')
@@ -360,6 +503,32 @@ function App() {
     () => `สุ่ม ${quickForm.digits} หลัก จำนวน ${quickForm.sets} ชุด`,
     [quickForm.digits, quickForm.sets],
   )
+  const selectedDraw = useMemo(() => {
+    if (resultsFeed.length === 0) {
+      return null
+    }
+
+    return resultsFeed.find((item) => item.drawDate === selectedDrawDate) ?? resultsFeed[0]
+  }, [resultsFeed, selectedDrawDate])
+  const ticketNumbers = useMemo(() => parseTicketNumbers(ticketInput), [ticketInput])
+  const ticketChecks = useMemo(
+    () => ticketNumbers.map((number) => checkTicketAgainstDraw(number, selectedDraw)),
+    [selectedDraw, ticketNumbers],
+  )
+  const checkerSummary = useMemo(
+    () => ({
+      totalPrize: ticketChecks.reduce((sum, item) => sum + item.totalPrize, 0),
+      totalMatches: ticketChecks.reduce((sum, item) => sum + item.matches.length, 0),
+      checkedPrizeCount: ticketChecks[0]?.checkedPrizeCount ?? 0,
+      winningTickets: ticketChecks.filter((item) => item.matches.length > 0).length,
+    }),
+    [ticketChecks],
+  )
+  const winningTicketChecks = useMemo(
+    () => ticketChecks.filter((item) => item.matches.length > 0),
+    [ticketChecks],
+  )
+  const canCheckTicket = ticketNumbers.length > 0 && Boolean(selectedDraw)
   const topMetrics = useMemo(
     () => [
       {
@@ -502,7 +671,7 @@ function App() {
             Lotto Helper
           </a>
           <nav className="topnav">
-            {NAV_ITEMS.slice(0, 4).map((item) => (
+            {NAV_ITEMS.slice(0, 5).map((item) => (
               <a key={item.id} href={`#${item.id}`}>
                 {item.label}
               </a>
@@ -521,9 +690,9 @@ function App() {
 
       <main className="workspace">
         <aside className="side-rail">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+          {NAV_ITEMS.map(({ id, label, icon }) => (
             <a key={id} href={`#${id}`} className="side-rail__item" aria-label={label}>
-              <Icon size={18} />
+              {createElement(icon, { size: 18 })}
             </a>
           ))}
           <button
@@ -555,6 +724,9 @@ function App() {
                 </a>
                 <a href="#results-feed" className="secondary-btn">
                   ดูผลย้อนหลัง
+                </a>
+                <a href="#prize-checker" className="secondary-btn">
+                  ตรวจหวย
                 </a>
               </div>
 
@@ -744,6 +916,99 @@ function App() {
                 <button type="button" className="primary-btn block-btn" onClick={handleStoryAnalysis}>
                   วิเคราะห์สิ่งที่เจอ
                 </button>
+              </section>
+
+              <section id="prize-checker" className="panel">
+                <SectionTitle
+                  icon={Trophy}
+                  eyebrow="โหมดที่ 4"
+                  title="ตรวจหวย"
+                  description="กรอกหรือวางเลขสลาก 6 หลักได้หลายรายการ ระบบจะตรวจรางวัลทั้งหมดในงวดที่เลือกและรวมยอดเงินรางวัลให้อัตโนมัติ"
+                  action={
+                    <select
+                      className="checker-draw-select"
+                      value={selectedDraw?.drawDate ?? ''}
+                      onChange={(event) => setSelectedDrawDate(event.target.value)}
+                      disabled={resultsFeed.length === 0}
+                      aria-label="เลือกงวดที่ต้องการตรวจ"
+                    >
+                      {resultsFeed.length > 0 ? (
+                        resultsFeed.map((item) => (
+                          <option key={item.drawDate} value={item.drawDate}>
+                            {item.drawPeriod}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">รอโหลดผลสลาก</option>
+                      )}
+                    </select>
+                  }
+                />
+
+                <label>
+                  เลขสลากกินแบ่ง
+                  <textarea
+                    className="checker-input"
+                    value={ticketInput}
+                    inputMode="numeric"
+                    placeholder="เช่น 123456, 444444 หรือวางหลายบรรทัด&#10;123456&#10;789012&#10;444444"
+                    rows={4}
+                    onChange={(event) => setTicketInput(event.target.value)}
+                  />
+                </label>
+
+                <div className={`checker-summary ${canCheckTicket ? 'is-ready' : ''}`}>
+                  <div>
+                    <span className="eyebrow">ผลการตรวจ</span>
+                    <strong>
+                      {canCheckTicket
+                        ? checkerSummary.totalMatches > 0
+                          ? `พบ ${checkerSummary.totalMatches} รางวัล จาก ${checkerSummary.winningTickets} ใบ`
+                          : 'ยังไม่มีเลขถูกรางวัล'
+                        : 'วางเลข 6 หลักได้หลายรายการ'}
+                    </strong>
+                    <p>
+                      {selectedDraw
+                        ? `ตรวจ ${ticketNumbers.length} ใบ จาก ${checkerSummary.checkedPrizeCount} หมายเลขรางวัลของงวด ${selectedDraw.drawPeriod}`
+                        : 'ระบบจะตรวจได้หลังจากโหลดผลสลากสำเร็จ'}
+                    </p>
+                  </div>
+                  <div className="checker-total">
+                    <span>เงินรางวัลรวม</span>
+                    <strong>{formatCurrency(checkerSummary.totalPrize)} บาท</strong>
+                  </div>
+                </div>
+
+                {canCheckTicket && winningTicketChecks.length > 0 ? (
+                  <div className="checker-matches">
+                    {winningTicketChecks.map((check) => (
+                      <article
+                        key={check.normalizedTicket}
+                        className={`checker-ticket-result ${check.matches.length > 0 ? 'is-winning' : ''}`}
+                      >
+                        <div className="checker-ticket-head">
+                          <div>
+                            <span className="eyebrow">เลขสลาก</span>
+                            <strong>{check.normalizedTicket}</strong>
+                          </div>
+                          <span>{formatCurrency(check.totalPrize)} บาท</span>
+                        </div>
+
+                        <div className="checker-prize-list">
+                          {check.matches.map((match) => (
+                            <div key={match.id} className="checker-match">
+                              <div>
+                                <strong>{match.label}</strong>
+                                <p>เลขที่ตรง: {match.number}</p>
+                              </div>
+                              <span>{formatCurrency(match.amount)} บาท</span>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
               </section>
 
               <section id="results-feed" className="panel">
