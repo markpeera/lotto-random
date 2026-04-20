@@ -31,15 +31,26 @@ const DEFAULT_QUICK_FORM = {
   sets: 4,
   lockedDigits: ['', '', '', '', '', ''],
   excludedDigits: '',
+  randomMode: 'balanced',
+}
+
+const QUICK_RANDOM_MODES = {
+  balanced: 'สุ่มปกติ',
+  hot: 'ถ่วงน้ำหนักเลขออกบ่อย',
+  cold: 'ถ่วงน้ำหนักเลขออกน้อย',
 }
 
 const LOTTO_API_BASE = 'https://lotto.api.rayriffy.com'
-const LIST_RESULTS_API = `${LOTTO_API_BASE}/list/1`
+const LIST_RESULTS_API_BASE = `${LOTTO_API_BASE}/list`
 const DETAIL_RESULTS_API = `${LOTTO_API_BASE}/lotto`
-const RESULTS_LIMIT = 8
+const HISTORY_LIMIT_OPTIONS = [8, 16, 24, 48]
+const DEFAULT_RESULTS_LIMIT = 8
+const ESTIMATED_LIST_PAGE_SIZE = 10
+const MAX_HISTORY_LIST_PAGES = 8
 const DEFAULT_REFRESH_MINUTES = 10
 const MIN_REFRESH_MINUTES = 1
 const MAX_REFRESH_MINUTES = 120
+const DIGIT_CHARS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
 const PRIZE_CATALOG = {
   prizeFirst: { label: 'รางวัลที่ 1', amount: 6000000 },
@@ -59,6 +70,7 @@ const NAV_ITEMS = [
   { id: 'dream-number', label: 'ตีเลขจากฝัน', icon: BookOpenText },
   { id: 'story-number', label: 'ตีเลขจากสิ่งที่เจอ', icon: Radar },
   { id: 'prize-checker', label: 'ตรวจหวย', icon: Trophy },
+  { id: 'history-summary', label: 'สถิติย้อนหลัง', icon: Activity },
   { id: 'results-feed', label: 'ผลย้อนหลัง', icon: History },
 ]
 
@@ -209,10 +221,154 @@ function parseTicketNumbers(value) {
   return [...new Set(tickets)]
 }
 
+function incrementCount(map, key, amount = 1) {
+  if (!key) {
+    return
+  }
+
+  map.set(key, (map.get(key) ?? 0) + amount)
+}
+
+function sortByCountThenValue(entries) {
+  return [...entries].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'th-TH'))
+}
+
+function getResultDigitPool(draw) {
+  return [
+    draw.firstPrize,
+    draw.last2,
+    ...(draw.front3 ?? []),
+    ...(draw.back3 ?? []),
+  ]
+    .filter(Boolean)
+    .join('')
+    .replace(/[^\d]/g, '')
+    .split('')
+}
+
+function getSlipTwoDigitCandidates(slip) {
+  const direct2d = slip.recommended2d ?? []
+  const from3d = (slip.recommended3d ?? []).map((value) => String(value).slice(-2))
+  const from6d = (slip.recommended6d ?? []).map((value) => String(value).slice(-2))
+
+  return [...new Set([...direct2d, ...from3d, ...from6d].map((value) => String(value).replace(/[^\d]/g, '').slice(-2)))]
+    .filter((value) => value.length === 2)
+}
+
+function buildHistoricalSummary(resultsFeed, savedSlips, drawLimit) {
+  const recentDraws = resultsFeed.slice(0, drawLimit)
+  const last2Frequency = new Map()
+  const last2Occurrences = new Map()
+  const digitFrequency = new Map()
+  const digitOccurrences = new Map()
+  const lastSeenByLast2 = new Map()
+
+  recentDraws.forEach((draw, index) => {
+    const last2 = String(draw.last2 ?? '').replace(/[^\d]/g, '').slice(-2)
+
+    if (last2.length === 2) {
+      incrementCount(last2Frequency, last2)
+      last2Occurrences.set(last2, [...(last2Occurrences.get(last2) ?? []), draw.drawPeriod])
+      if (!lastSeenByLast2.has(last2)) {
+        lastSeenByLast2.set(last2, {
+          value: last2,
+          drawPeriod: draw.drawPeriod,
+          drawsAgo: index,
+        })
+      }
+    }
+
+    getResultDigitPool(draw).forEach((digit) => {
+      incrementCount(digitFrequency, digit)
+      digitOccurrences.set(digit, [...new Set([...(digitOccurrences.get(digit) ?? []), draw.drawPeriod])])
+    })
+  })
+
+  const frequentLast2 = sortByCountThenValue(
+    [...last2Frequency.entries()].map(([value, count]) => ({
+      value,
+      count,
+      drawPeriods: last2Occurrences.get(value) ?? [],
+    })),
+  ).slice(0, 5)
+
+  const overdueLast2 = [...lastSeenByLast2.values()]
+    .sort((a, b) => b.drawsAgo - a.drawsAgo || a.value.localeCompare(b.value, 'th-TH'))
+    .slice(0, 5)
+
+  const standoutDigits = sortByCountThenValue(
+    [...digitFrequency.entries()].map(([value, count]) => ({
+      value,
+      count,
+      drawPeriods: digitOccurrences.get(value) ?? [],
+    })),
+  ).slice(0, 6)
+
+  const historicalLast2 = new Set([...last2Frequency.keys()])
+  const frequentLast2Set = new Set(frequentLast2.map((item) => item.value))
+  const overdueLast2Set = new Set(overdueLast2.map((item) => item.value))
+  const savedCandidates = savedSlips.flatMap((slip) =>
+    getSlipTwoDigitCandidates(slip).map((value) => ({
+      value,
+      title: slip.title,
+    })),
+  )
+  const savedHistoricalHits = savedCandidates
+    .filter((item) => historicalLast2.has(item.value))
+    .slice(0, 8)
+  const savedFrequentHits = savedCandidates
+    .filter((item) => frequentLast2Set.has(item.value))
+    .slice(0, 8)
+  const savedOverdueHits = savedCandidates
+    .filter((item) => overdueLast2Set.has(item.value))
+    .slice(0, 8)
+
+  return {
+    drawCount: recentDraws.length,
+    drawLimit,
+    drawRows: recentDraws.map((draw) => ({
+      id: draw.drawDate,
+      period: draw.drawPeriod,
+      firstPrize: draw.firstPrize,
+      last2: draw.last2,
+      front3: draw.front3 ?? [],
+      back3: draw.back3 ?? [],
+    })),
+    latestDrawPeriod: recentDraws[0]?.drawPeriod ?? '-',
+    oldestDrawPeriod: recentDraws.at(-1)?.drawPeriod ?? '-',
+    frequentLast2,
+    overdueLast2,
+    standoutDigits,
+    savedHistoricalHits,
+    savedFrequentHits,
+    savedOverdueHits,
+  }
+}
+
+function buildQuickPickWeights(historicalSummary, mode) {
+  if (mode === 'balanced') {
+    return null
+  }
+
+  const counts = new Map(historicalSummary.standoutDigits.map((item) => [item.value, item.count]))
+  const maxCount = Math.max(1, ...historicalSummary.standoutDigits.map((item) => item.count))
+
+  return Object.fromEntries(
+    DIGIT_CHARS.map((digit) => {
+      const count = counts.get(digit) ?? 0
+      const weight = mode === 'hot' ? count + 1 : maxCount - count + 1
+
+      return [digit, weight]
+    }),
+  )
+}
+
 function getCachedResults() {
   return readStorage(STORAGE_KEYS.lotteryResultsCache, {
     items: [],
     fetchedAt: null,
+    requestedLimit: DEFAULT_RESULTS_LIMIT,
+    loadedPages: 0,
   })
 }
 
@@ -225,6 +381,13 @@ function getInitialRefreshMinutes() {
   }
 
   return Math.min(MAX_REFRESH_MINUTES, Math.max(MIN_REFRESH_MINUTES, fromStorage))
+}
+
+function getInitialHistoryLimit() {
+  const preferences = readStorage(STORAGE_KEYS.uiPreferences, {})
+  const fromStorage = Number(preferences.historyResultsLimit)
+
+  return HISTORY_LIMIT_OPTIONS.includes(fromStorage) ? fromStorage : DEFAULT_RESULTS_LIMIT
 }
 
 function formatCreatedAt(value) {
@@ -345,11 +508,12 @@ function App() {
   const [resultsSourceLabel, setResultsSourceLabel] = useState(() => {
     const cached = getCachedResults()
     return cached.items.length > 0
-      ? `แสดงจาก localStorage cache ล่าสุด (${cached.fetchedAt ?? 'ไม่ระบุเวลา'})`
+      ? `แสดงจาก localStorage cache ล่าสุด ${cached.items.length} งวด (${cached.fetchedAt ?? 'ไม่ระบุเวลา'})`
       : 'กำลังรอโหลดผลจาก API ภายนอก'
   })
   const [lastResultsSync, setLastResultsSync] = useState(() => getCachedResults().fetchedAt)
   const [refreshMinutes, setRefreshMinutes] = useState(getInitialRefreshMinutes)
+  const [historyLimit, setHistoryLimit] = useState(getInitialHistoryLimit)
   const [isResultsLoading, setIsResultsLoading] = useState(false)
   const timerRef = useRef(null)
 
@@ -367,10 +531,11 @@ function App() {
     const nextPreferences = {
       ...readStorage(STORAGE_KEYS.uiPreferences, {}),
       resultsRefreshMinutes: refreshMinutes,
+      historyResultsLimit: historyLimit,
     }
 
     writeStorage(STORAGE_KEYS.uiPreferences, nextPreferences)
-  }, [refreshMinutes])
+  }, [historyLimit, refreshMinutes])
 
   useEffect(() => {
     let isActive = true
@@ -381,21 +546,37 @@ function App() {
       }
 
       try {
-        const response = await fetch(LIST_RESULTS_API)
-        if (!response.ok) {
-          throw new Error('ไม่สามารถโหลดรายการงวดย้อนหลังได้')
-        }
+        const pageCount = Math.min(
+          MAX_HISTORY_LIST_PAGES,
+          Math.max(1, Math.ceil(historyLimit / ESTIMATED_LIST_PAGE_SIZE) + 1),
+        )
+        const pageNumbers = Array.from({ length: pageCount }, (_, index) => index + 1)
+        const listResponses = await Promise.allSettled(
+          pageNumbers.map(async (page) => {
+            const response = await fetch(`${LIST_RESULTS_API_BASE}/${page}`)
+            if (!response.ok) {
+              throw new Error(`load list page ${page} failed`)
+            }
 
-        const data = await response.json()
-        if (data?.status !== 'success' || !Array.isArray(data?.response)) {
-          throw new Error('รูปแบบข้อมูลจาก API ไม่ถูกต้อง')
-        }
+            const data = await response.json()
+            if (data?.status !== 'success' || !Array.isArray(data?.response)) {
+              throw new Error(`invalid list page ${page}`)
+            }
 
-        const drawIds = data.response
-          .map((item) => item.id)
-          .filter(Boolean)
-          .slice(0, RESULTS_LIMIT)
-
+            return data.response
+          }),
+        )
+        const listItems = listResponses
+          .filter((item) => item.status === 'fulfilled')
+          .flatMap((item) => item.value)
+        const loadedPageCount = listResponses.filter((item) => item.status === 'fulfilled').length
+        const drawIds = [
+          ...new Set(
+            listItems
+              .map((item) => item.id)
+              .filter(Boolean),
+          ),
+        ].slice(0, historyLimit)
         const drawDetails = await Promise.allSettled(
           drawIds.map(async (drawId) => {
             const detailResponse = await fetch(`${DETAIL_RESULTS_API}/${drawId}`)
@@ -425,13 +606,15 @@ function App() {
         writeStorage(STORAGE_KEYS.lotteryResultsCache, {
           items,
           fetchedAt,
+          requestedLimit: historyLimit,
+          loadedPages: loadedPageCount,
         })
 
         if (isActive) {
           setResultsFeed(items)
           setLastResultsSync(fetchedAt)
           setResultsSourceLabel(
-            `ข้อมูลจาก API ภายนอก: ${LOTTO_API_BASE} (อัปเดตล่าสุด ${new Date(fetchedAt).toLocaleString('th-TH')})`,
+            `ข้อมูลจาก API ภายนอก: ${LOTTO_API_BASE} โหลด ${items.length}/${historyLimit} งวด จาก ${loadedPageCount}/${pageCount} หน้า (อัปเดตล่าสุด ${new Date(fetchedAt).toLocaleString('th-TH')})`,
           )
         }
       } catch {
@@ -442,7 +625,7 @@ function App() {
             setResultsFeed(cached.items)
             setLastResultsSync(cached.fetchedAt)
             setResultsSourceLabel(
-              `โหลด API ไม่สำเร็จ จึงใช้ localStorage cache (${cached.fetchedAt ? new Date(cached.fetchedAt).toLocaleString('th-TH') : 'ไม่ระบุเวลา'})`,
+              `โหลด API ไม่สำเร็จ จึงใช้ localStorage cache ${cached.items.length} งวด (${cached.fetchedAt ? new Date(cached.fetchedAt).toLocaleString('th-TH') : 'ไม่ระบุเวลา'})`,
             )
           } else {
             setResultsFeed([])
@@ -467,7 +650,7 @@ function App() {
       isActive = false
       window.clearInterval(refreshIntervalId)
     }
-  }, [refreshMinutes])
+  }, [historyLimit, refreshMinutes])
 
   const handleRefreshMinutesChange = (value) => {
     const parsed = Number(value)
@@ -478,6 +661,11 @@ function App() {
     }
 
     setRefreshMinutes(Math.min(MAX_REFRESH_MINUTES, Math.max(MIN_REFRESH_MINUTES, parsed)))
+  }
+
+  const handleHistoryLimitChange = (value) => {
+    const parsed = Number(value)
+    setHistoryLimit(HISTORY_LIMIT_OPTIONS.includes(parsed) ? parsed : DEFAULT_RESULTS_LIMIT)
   }
 
   const latestSlip = recentSlips[0] ?? createGeneratedSlip({
@@ -500,8 +688,8 @@ function App() {
     return values
   }, [latestSlip.highlightNumbers])
   const quickSummary = useMemo(
-    () => `สุ่ม ${quickForm.digits} หลัก จำนวน ${quickForm.sets} ชุด`,
-    [quickForm.digits, quickForm.sets],
+    () => `สุ่ม ${quickForm.digits} หลัก จำนวน ${quickForm.sets} ชุด · ${QUICK_RANDOM_MODES[quickForm.randomMode]}`,
+    [quickForm.digits, quickForm.randomMode, quickForm.sets],
   )
   const selectedDraw = useMemo(() => {
     if (resultsFeed.length === 0) {
@@ -529,6 +717,14 @@ function App() {
     [ticketChecks],
   )
   const canCheckTicket = ticketNumbers.length > 0 && Boolean(selectedDraw)
+  const historicalSummary = useMemo(
+    () => buildHistoricalSummary(resultsFeed, savedSlips, historyLimit),
+    [historyLimit, resultsFeed, savedSlips],
+  )
+  const quickPickWeights = useMemo(
+    () => buildQuickPickWeights(historicalSummary, quickForm.randomMode),
+    [historicalSummary, quickForm.randomMode],
+  )
   const topMetrics = useMemo(
     () => [
       {
@@ -580,11 +776,19 @@ function App() {
       return
     }
 
+    if (quickForm.randomMode !== 'balanced' && historicalSummary.drawCount === 0) {
+      setFlashMessage('ต้องมีข้อมูลผลย้อนหลังก่อนจึงจะสุ่มแบบถ่วงน้ำหนักได้')
+      return
+    }
+
     const slip = generateQuickPicks({
       digits: quickForm.digits,
       sets: quickForm.sets,
       lockedDigits,
       excludedDigits,
+      digitWeights: quickPickWeights,
+      modeLabel: QUICK_RANDOM_MODES[quickForm.randomMode],
+      historyDrawCount: historicalSummary.drawCount,
     })
 
     pushSlip(slip)
@@ -794,6 +998,22 @@ function App() {
                   </label>
 
                   <label>
+                    วิธีสุ่ม
+                    <select
+                      value={quickForm.randomMode}
+                      onChange={(event) =>
+                        setQuickForm((prev) => ({ ...prev, randomMode: event.target.value }))
+                      }
+                    >
+                      {Object.entries(QUICK_RANDOM_MODES).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
                     จำนวนชุด
                     <input
                       type="number"
@@ -809,6 +1029,10 @@ function App() {
                     />
                   </label>
                 </div>
+
+                <button type="button" className="primary-btn block-btn quick-pick-action" onClick={handleQuickPick}>
+                  สร้างโพยสุ่มเลข
+                </button>
 
                 <div className="locked-grid">
                   {Array.from({ length: quickForm.digits }).map((_, index) => (
@@ -845,9 +1069,15 @@ function App() {
                   />
                 </label>
 
-                <button type="button" className="primary-btn block-btn" onClick={handleQuickPick}>
-                  สร้างโพยสุ่มเลข
-                </button>
+                <div className="system-readout">
+                  <span className="eyebrow">น้ำหนักจากสถิติย้อนหลัง</span>
+                  <strong>{QUICK_RANDOM_MODES[quickForm.randomMode]}</strong>
+                  <p>
+                    {quickForm.randomMode === 'balanced'
+                      ? 'สุ่มกระจายทุกเลขเท่ากัน ไม่ใช้สถิติย้อนหลัง'
+                      : `ใช้ความถี่เลขเด่นจาก ${historicalSummary.drawCount}/${historyLimit} งวดล่าสุดเป็นน้ำหนักในการสุ่ม ไม่ใช่การทำนายหรือการการันตีผล`}
+                  </p>
+                </div>
               </section>
 
               <section id="dream-number" className="panel">
@@ -1011,6 +1241,154 @@ function App() {
                 ) : null}
               </section>
 
+              <section id="history-summary" className="panel">
+                <SectionTitle
+                  icon={Activity}
+                  eyebrow="สถิติจากผลย้อนหลัง"
+                  title="สรุปสถิติย้อนหลัง"
+                  description={`คำนวณจากผลสลากล่าสุดสูงสุด ${historicalSummary.drawLimit} งวดที่โหลดจาก API และเก็บ cache ไว้ในเครื่อง`}
+                  action={<span className="inline-status">{historicalSummary.drawCount} งวด</span>}
+                />
+
+                <div className="form-grid compact-grid history-control-grid">
+                  <label>
+                    ช่วงสถิติย้อนหลัง
+                    <select value={historyLimit} onChange={(event) => handleHistoryLimitChange(event.target.value)}>
+                      {HISTORY_LIMIT_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option} งวดล่าสุด
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="system-readout">
+                    <span className="eyebrow">การโหลดข้อมูล</span>
+                    <strong>
+                      {isResultsLoading
+                        ? `กำลังโหลด ${historyLimit} งวด`
+                        : `แสดง ${historicalSummary.drawCount}/${historyLimit} งวด`}
+                    </strong>
+                    <p>ระบบจะดึงหลายหน้า API อัตโนมัติ เช่น /list/1, /list/2 แล้วนำ id ไปโหลดรายละเอียดแต่ละงวด</p>
+                  </div>
+                </div>
+
+                <div className="history-summary">
+                  <div className="history-summary__notice">
+                    <div>
+                      <span className="eyebrow">แหล่งข้อมูล</span>
+                      <strong>
+                        {historicalSummary.drawCount > 0
+                          ? `ใช้ช่วง ${historicalSummary.latestDrawPeriod} ถึง ${historicalSummary.oldestDrawPeriod}`
+                          : 'ยังไม่มีข้อมูลผลย้อนหลังสำหรับคำนวณ'}
+                      </strong>
+                    </div>
+                    <p>
+                      ข้อมูลมาจาก API ภายนอก {LOTTO_API_BASE} โดยโหลดล่าสุดสูงสุด {historyLimit} งวด
+                      แล้วเก็บสำรองใน localStorage หาก API ใช้งานไม่ได้จะใช้ cache ในเครื่องแทน
+                      สรุปนี้เป็นข้อมูลในอดีตเท่านั้น ไม่ใช่การทำนายหรือการการันตีผลงวดถัดไป
+                    </p>
+                  </div>
+
+                  <div className="history-source-row">
+                    <div className="system-readout">
+                      <span className="eyebrow">ซิงก์ล่าสุด</span>
+                      <strong>{formatSyncClock(lastResultsSync)}</strong>
+                      <p>{resultsSourceLabel}</p>
+                    </div>
+                    <div className="draw-source-list">
+                      <span className="eyebrow">งวดที่ใช้คำนวณ</span>
+                      <div>
+                        {historicalSummary.drawRows.length > 0 ? (
+                          historicalSummary.drawRows.map((draw) => (
+                            <p key={draw.id}>
+                              <strong>{draw.period}</strong>
+                              <span>ท้าย 2 ตัว {draw.last2} · รางวัลที่ 1 {draw.firstPrize}</span>
+                            </p>
+                          ))
+                        ) : (
+                          <p className="muted">รอข้อมูลผลย้อนหลังจาก API หรือ cache ในเครื่อง</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="history-summary-grid">
+                    <article className="history-summary-card">
+                      <span className="eyebrow">เลขท้าย 2 ตัวที่ออกบ่อย</span>
+                      <div className="summary-chip-row">
+                        {historicalSummary.frequentLast2.length > 0 ? (
+                          historicalSummary.frequentLast2.map((item) => (
+                            <strong key={`frequent-${item.value}`}>
+                              {item.value}
+                              <small>{item.count} ครั้ง</small>
+                              <small>{item.drawPeriods.join(' / ')}</small>
+                            </strong>
+                          ))
+                        ) : (
+                          <em>รอข้อมูลผลย้อนหลัง</em>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="history-summary-card">
+                      <span className="eyebrow">เลขท้าย 2 ตัวที่ห่างจากงวดล่าสุด</span>
+                      <div className="summary-chip-row">
+                        {historicalSummary.overdueLast2.length > 0 ? (
+                          historicalSummary.overdueLast2.map((item) => (
+                            <strong key={`overdue-${item.value}`}>
+                              {item.value}
+                              <small>{item.drawsAgo === 0 ? 'งวดล่าสุด' : `${item.drawsAgo} งวดก่อน`}</small>
+                              <small>{item.drawPeriod}</small>
+                            </strong>
+                          ))
+                        ) : (
+                          <em>รอข้อมูลผลย้อนหลัง</em>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="history-summary-card">
+                      <span className="eyebrow">เลขเด่นจาก {historyLimit} งวดล่าสุด</span>
+                      <div className="summary-chip-row">
+                        {historicalSummary.standoutDigits.length > 0 ? (
+                          historicalSummary.standoutDigits.map((item) => (
+                            <strong key={`digit-${item.value}`}>
+                              {item.value}
+                              <small>{item.count} จุด</small>
+                              <small>{item.drawPeriods.slice(0, 3).join(' / ')}</small>
+                            </strong>
+                          ))
+                        ) : (
+                          <em>รอข้อมูลผลย้อนหลัง</em>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="history-summary-card">
+                      <span className="eyebrow">เทียบโพยที่บันทึกไว้</span>
+                      {savedSlips.length > 0 ? (
+                        <div className="saved-stat-list">
+                          <p>
+                            <strong>{historicalSummary.savedHistoricalHits.length}</strong>
+                            {' '}เลขในโพยเคยตรงเลขท้าย 2 ตัวในชุดข้อมูล
+                          </p>
+                          <p>
+                            <strong>{historicalSummary.savedFrequentHits.length}</strong>
+                            {' '}เลขในโพยชนกลุ่มที่ออกบ่อย
+                          </p>
+                          <p>
+                            <strong>{historicalSummary.savedOverdueHits.length}</strong>
+                            {' '}เลขในโพยชนกลุ่มที่ห่างจากงวดล่าสุด
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="muted">บันทึกโพยก่อน แล้วระบบจะเทียบเลข 2 ตัวของคุณกับสถิติย้อนหลังให้อัตโนมัติ</p>
+                      )}
+                    </article>
+                  </div>
+                </div>
+              </section>
+
               <section id="results-feed" className="panel">
                 <SectionTitle
                   icon={History}
@@ -1140,7 +1518,7 @@ function App() {
                   </div>
                   <div>
                     <span>จำนวนงวด</span>
-                    <strong>{RESULTS_LIMIT} งวด</strong>
+                    <strong>{historicalSummary.drawCount}/{historyLimit} งวด</strong>
                   </div>
                   <div>
                     <span>การจัดเก็บ</span>

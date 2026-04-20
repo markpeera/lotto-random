@@ -12,6 +12,28 @@ function padToLength(value, length) {
   return value.padStart(length, '0').slice(-length)
 }
 
+function pickWeightedDigit(availableDigits, digitWeights) {
+  if (!digitWeights) {
+    return availableDigits[Math.floor(Math.random() * availableDigits.length)] ?? '0'
+  }
+
+  const weightedPool = availableDigits.map((digit) => ({
+    digit,
+    weight: Math.max(1, Number(digitWeights[digit]) || 1),
+  }))
+  const totalWeight = weightedPool.reduce((sum, item) => sum + item.weight, 0)
+  let cursor = Math.random() * totalWeight
+
+  for (const item of weightedPool) {
+    cursor -= item.weight
+    if (cursor <= 0) {
+      return item.digit
+    }
+  }
+
+  return weightedPool.at(-1)?.digit ?? '0'
+}
+
 function extractSequences(text) {
   return normalizeText(text).match(/\d+/g) ?? []
 }
@@ -116,11 +138,20 @@ export function createGeneratedSlip({
   }
 }
 
-export function generateQuickPicks({ digits, sets, lockedDigits, excludedDigits }) {
+export function generateQuickPicks({
+  digits,
+  sets,
+  lockedDigits,
+  excludedDigits,
+  digitWeights = null,
+  modeLabel = 'สุ่มปกติ',
+  historyDrawCount = 0,
+}) {
   const results = []
   const excludedSet = new Set(excludedDigits)
   let attempts = 0
   const maxAttempts = 2000
+  const availableDigits = digitChars.filter((digit) => !excludedSet.has(digit))
 
   while (results.length < sets && attempts < maxAttempts) {
     attempts += 1
@@ -130,8 +161,7 @@ export function generateQuickPicks({ digits, sets, lockedDigits, excludedDigits 
         return locked
       }
 
-      const available = digitChars.filter((digit) => !excludedSet.has(digit))
-      return available[Math.floor(Math.random() * available.length)] ?? '0'
+      return pickWeightedDigit(availableDigits, digitWeights)
     }).join('')
 
     if ([...value].some((digit) => excludedSet.has(digit))) {
@@ -152,12 +182,15 @@ export function generateQuickPicks({ digits, sets, lockedDigits, excludedDigits 
     excludedDigits.length > 0
       ? `ตัดเลขที่ไม่ต้องการออก: ${excludedDigits.join(', ')}`
       : 'ไม่มีการตัดเลขออกจากชุดสุ่ม',
+    digitWeights
+      ? `ใช้โหมด ${modeLabel} จากสถิติย้อนหลัง ${historyDrawCount} งวดล่าสุด เพื่อเพิ่มโอกาสหยิบเลขตามน้ำหนักที่คำนวณไว้`
+      : `ใช้โหมด ${modeLabel} โดยให้ทุกเลขมีโอกาสถูกหยิบเท่ากัน`,
   ]
 
   return createGeneratedSlip({
     sourceType: 'quick-pick',
     inputText: `สุ่มเลข ${digits} หลัก`,
-    title: `Quick Pick ${digits} หลัก`,
+    title: `Quick Pick ${digits} หลัก · ${modeLabel}`,
     highlights,
     recommended2d: digits === 2 ? results : results.map((item) => item.slice(-2)).slice(0, 8),
     recommended3d: digits === 3 ? results : results.map((item) => padToLength(item, 3).slice(-3)).slice(0, 6),
