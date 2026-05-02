@@ -40,16 +40,14 @@ const QUICK_RANDOM_MODES = {
   cold: 'ถ่วงน้ำหนักเลขออกน้อย',
 }
 
-const LOTTO_API_BASE = 'https://lotto.api.rayriffy.com'
-const LIST_RESULTS_API_BASE = `${LOTTO_API_BASE}/list`
-const DETAIL_RESULTS_API = `${LOTTO_API_BASE}/lotto`
+const LOTTO_SOURCE_LABEL = 'Rayriffy Thai Lottery API'
+const LOTTERY_RESULTS_API = '/api/lottery-results'
 const HISTORY_LIMIT_OPTIONS = [8, 16, 24, 48]
 const DEFAULT_RESULTS_LIMIT = 8
-const ESTIMATED_LIST_PAGE_SIZE = 10
-const MAX_HISTORY_LIST_PAGES = 8
 const DEFAULT_REFRESH_MINUTES = 10
 const MIN_REFRESH_MINUTES = 1
 const MAX_REFRESH_MINUTES = 120
+const API_RATE_LIMIT_STATUS = 429
 const DIGIT_CHARS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
 const PRIZE_CATALOG = {
@@ -74,55 +72,53 @@ const NAV_ITEMS = [
   { id: 'results-feed', label: 'ผลย้อนหลัง', icon: History },
 ]
 
-function findNumbersById(items, id) {
-  return items.find((item) => item.id === id)?.number ?? []
+class ApiRequestError extends Error {
+  constructor(message, { status, url } = {}) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    this.url = url
+  }
+}
+
+function isRateLimitError(error) {
+  return error?.status === API_RATE_LIMIT_STATUS
+    || error?.errors?.some((item) => isRateLimitError(item))
+}
+
+async function fetchApiJson(url, fallbackMessage) {
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    throw new ApiRequestError(fallbackMessage, {
+      status: response.status,
+      url,
+    })
+  }
+
+  return response.json()
+}
+
+function buildResultsLoadNotice(error, cached) {
+  const baseMessage = isRateLimitError(error)
+    ? 'ผู้ให้บริการข้อมูลผลสลากจำกัดจำนวนการเรียกชั่วคราว ระบบจึงพักการโหลดใหม่'
+    : 'ระบบยังเชื่อมต่อข้อมูลผลสลากภายนอกไม่ได้'
+
+  if (cached.items.length > 0) {
+    const cachedAt = cached.fetchedAt
+      ? new Date(cached.fetchedAt).toLocaleString('th-TH')
+      : 'ไม่ระบุเวลา'
+
+    return `${baseMessage} และแสดงข้อมูลสำรองในเครื่อง ${cached.items.length} งวดแทน (อัปเดตล่าสุด ${cachedAt})`
+  }
+
+  return `${baseMessage} กรุณาลองใหม่อีกครั้งภายหลัง`
 }
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('th-TH', {
     maximumFractionDigits: 0,
   }).format(value)
-}
-
-function normalizePrizeAmount(item, fallbackAmount) {
-  const value = Number(item?.reward ?? item?.amount ?? item?.prize ?? fallbackAmount)
-  return Number.isFinite(value) ? value : fallbackAmount
-}
-
-function normalizePrizeItem(item) {
-  const fallback = PRIZE_CATALOG[item.id] ?? {}
-
-  return {
-    id: item.id,
-    label: fallback.label ?? item.name ?? item.id,
-    amount: normalizePrizeAmount(item, fallback.amount ?? 0),
-    numbers: Array.isArray(item.number) ? item.number.map((number) => String(number)) : [],
-    matchType: fallback.matchType ?? 'exact',
-  }
-}
-
-function buildAllPrizes(payload) {
-  const prizeItems = (payload.prizes ?? []).map(normalizePrizeItem)
-  const runningItems = (payload.runningNumbers ?? []).map(normalizePrizeItem)
-
-  return [...prizeItems, ...runningItems].filter((item) => item.numbers.length > 0)
-}
-
-function normalizeResultDetail(payload, drawId) {
-  const firstPrize = findNumbersById(payload.prizes ?? [], 'prizeFirst')[0] ?? '-'
-  const front3 = findNumbersById(payload.runningNumbers ?? [], 'runningNumberFrontThree')
-  const back3 = findNumbersById(payload.runningNumbers ?? [], 'runningNumberBackThree')
-  const last2 = findNumbersById(payload.runningNumbers ?? [], 'runningNumberBackTwo')[0] ?? '-'
-
-  return {
-    drawDate: drawId ?? `${payload.date}-${firstPrize}`,
-    drawPeriod: payload.date ?? 'งวดล่าสุด',
-    firstPrize,
-    last2,
-    front3,
-    back3,
-    allPrizes: buildAllPrizes(payload),
-  }
 }
 
 function getFallbackPrizeItems(draw) {
@@ -546,91 +542,54 @@ function App() {
       }
 
       try {
-        const pageCount = Math.min(
-          MAX_HISTORY_LIST_PAGES,
-          Math.max(1, Math.ceil(historyLimit / ESTIMATED_LIST_PAGE_SIZE) + 1),
-        )
-        const pageNumbers = Array.from({ length: pageCount }, (_, index) => index + 1)
-        const listResponses = await Promise.allSettled(
-          pageNumbers.map(async (page) => {
-            const response = await fetch(`${LIST_RESULTS_API_BASE}/${page}`)
-            if (!response.ok) {
-              throw new Error(`load list page ${page} failed`)
-            }
-
-            const data = await response.json()
-            if (data?.status !== 'success' || !Array.isArray(data?.response)) {
-              throw new Error(`invalid list page ${page}`)
-            }
-
-            return data.response
-          }),
-        )
-        const listItems = listResponses
-          .filter((item) => item.status === 'fulfilled')
-          .flatMap((item) => item.value)
-        const loadedPageCount = listResponses.filter((item) => item.status === 'fulfilled').length
-        const drawIds = [
-          ...new Set(
-            listItems
-              .map((item) => item.id)
-              .filter(Boolean),
-          ),
-        ].slice(0, historyLimit)
-        const drawDetails = await Promise.allSettled(
-          drawIds.map(async (drawId) => {
-            const detailResponse = await fetch(`${DETAIL_RESULTS_API}/${drawId}`)
-
-            if (!detailResponse.ok) {
-              throw new Error(`โหลดรายละเอียดงวด ${drawId} ไม่สำเร็จ`)
-            }
-
-            const detailData = await detailResponse.json()
-            if (detailData?.status !== 'success' || !detailData?.response) {
-              throw new Error(`ข้อมูลงวด ${drawId} ไม่ถูกต้อง`)
-            }
-
-            return normalizeResultDetail(detailData.response, drawId)
-          }),
+        const data = await fetchApiJson(
+          `${LOTTERY_RESULTS_API}?limit=${historyLimit}`,
+          'โหลดผลสลากจากระบบกลางไม่สำเร็จ',
         )
 
-        const items = drawDetails
-          .filter((item) => item.status === 'fulfilled')
-          .map((item) => item.value)
-
-        if (items.length === 0) {
-          throw new Error('ไม่พบข้อมูลงวดจาก API')
+        if (data?.status !== 'success' || !data?.response || !Array.isArray(data.response.items)) {
+          throw new Error('รูปแบบข้อมูลผลสลากจากระบบกลางไม่ถูกต้อง')
         }
 
-        const fetchedAt = new Date().toISOString()
+        const resultPayload = data.response
+        const items = resultPayload.items
+        if (items.length === 0) {
+          throw new Error('ไม่พบข้อมูลงวดจากระบบกลาง')
+        }
+
+        const fetchedAt = resultPayload.fetchedAt ?? new Date().toISOString()
         writeStorage(STORAGE_KEYS.lotteryResultsCache, {
           items,
           fetchedAt,
           requestedLimit: historyLimit,
-          loadedPages: loadedPageCount,
+          loadedPages: resultPayload.loadedPages,
         })
 
         if (isActive) {
           setResultsFeed(items)
           setLastResultsSync(fetchedAt)
           setResultsSourceLabel(
-            `ข้อมูลจาก API ภายนอก: ${LOTTO_API_BASE} โหลด ${items.length}/${historyLimit} งวด จาก ${loadedPageCount}/${pageCount} หน้า (อัปเดตล่าสุด ${new Date(fetchedAt).toLocaleString('th-TH')})`,
+            `${resultPayload.cache?.hit ? 'ข้อมูลจาก cache ระบบกลาง' : 'ข้อมูลจากระบบกลาง'} (${LOTTO_SOURCE_LABEL}) โหลด ${items.length}/${historyLimit} งวด จาก ${resultPayload.loadedPages ?? '-'} หน้า (อัปเดตล่าสุด ${new Date(fetchedAt).toLocaleString('th-TH')})${
+              resultPayload.cache?.stale
+                ? ' ใช้ข้อมูลสำรองเพราะ API ภายนอกยังไม่พร้อม'
+                : resultPayload.partial
+                  ? ' บางงวดโหลดจาก API ภายนอกไม่สำเร็จ'
+                  : ''
+            }`,
           )
         }
-      } catch {
+      } catch (error) {
         const cached = getCachedResults()
 
         if (isActive) {
           if (cached.items.length > 0) {
             setResultsFeed(cached.items)
             setLastResultsSync(cached.fetchedAt)
-            setResultsSourceLabel(
-              `โหลด API ไม่สำเร็จ จึงใช้ localStorage cache ${cached.items.length} งวด (${cached.fetchedAt ? new Date(cached.fetchedAt).toLocaleString('th-TH') : 'ไม่ระบุเวลา'})`,
-            )
+            setResultsSourceLabel(buildResultsLoadNotice(error, cached))
           } else {
             setResultsFeed([])
             setLastResultsSync(null)
-            setResultsSourceLabel('โหลด API ไม่สำเร็จ และยังไม่มี cache ในเครื่อง')
+            setResultsSourceLabel(buildResultsLoadNotice(error, cached))
           }
         }
       } finally {
@@ -1283,8 +1242,8 @@ function App() {
                       </strong>
                     </div>
                     <p>
-                      ข้อมูลมาจาก API ภายนอก {LOTTO_API_BASE} โดยโหลดล่าสุดสูงสุด {historyLimit} งวด
-                      แล้วเก็บสำรองใน localStorage หาก API ใช้งานไม่ได้จะใช้ cache ในเครื่องแทน
+                      ข้อมูลมาจากระบบกลางของแอป โดย backend จะดึงจาก {LOTTO_SOURCE_LABEL} และ cache ไว้ก่อนส่งให้หน้าเว็บ
+                      หาก API ภายนอกใช้งานไม่ได้จะใช้ข้อมูลสำรองแทน
                       สรุปนี้เป็นข้อมูลในอดีตเท่านั้น ไม่ใช่การทำนายหรือการการันตีผลงวดถัดไป
                     </p>
                   </div>
