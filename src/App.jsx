@@ -492,6 +492,7 @@ function MetricCard({ label, value, meta }) {
 }
 
 function App() {
+  const [activeFeature, setActiveFeature] = useState('quick-pick')
   const [quickForm, setQuickForm] = useState(DEFAULT_QUICK_FORM)
   const [dreamText, setDreamText] = useState('')
   const [storyText, setStoryText] = useState('')
@@ -829,15 +830,20 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-row">
-          <a href="#overview" className="brand-mark">
+          <button type="button" className="brand-mark" onClick={() => setActiveFeature('overview')}>
             <Terminal size={18} />
             Lotto Helper
-          </a>
+          </button>
           <nav className="topnav">
-            {NAV_ITEMS.slice(0, 5).map((item) => (
-              <a key={item.id} href={`#${item.id}`}>
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={activeFeature === item.id ? 'is-active' : ''}
+                onClick={() => setActiveFeature(item.id)}
+              >
                 {item.label}
-              </a>
+              </button>
             ))}
           </nav>
         </div>
@@ -854,9 +860,16 @@ function App() {
       <main className="workspace">
         <aside className="side-rail">
           {NAV_ITEMS.map(({ id, label, icon }) => (
-            <a key={id} href={`#${id}`} className="side-rail__item" aria-label={label}>
+            <button
+              key={id}
+              type="button"
+              className={`side-rail__item ${activeFeature === id ? 'is-active' : ''}`}
+              onClick={() => setActiveFeature(id)}
+              aria-label={label}
+              title={label}
+            >
               {createElement(icon, { size: 18 })}
-            </a>
+            </button>
           ))}
           <button
             type="button"
@@ -869,6 +882,7 @@ function App() {
         </aside>
 
         <div className="dashboard-stack">
+          {activeFeature === 'overview' ? (
           <section id="overview" className="panel hero-panel">
             <div className="hero-copy">
               <p className="eyebrow">ตัวช่วยไอเดียเลข</p>
@@ -879,18 +893,18 @@ function App() {
               </p>
 
               <div className="hero-cta">
-                <a href="#quick-pick" className="primary-btn">
+                <button type="button" className="primary-btn" onClick={() => setActiveFeature('quick-pick')}>
                   เริ่มสุ่มเลข
-                </a>
-                <a href="#dream-number" className="secondary-btn">
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('dream-number')}>
                   เล่าความฝัน
-                </a>
-                <a href="#results-feed" className="secondary-btn">
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('results-feed')}>
                   ดูผลย้อนหลัง
-                </a>
-                <a href="#prize-checker" className="secondary-btn">
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('prize-checker')}>
                   ตรวจหวย
-                </a>
+                </button>
               </div>
 
               <div className="hero-log">
@@ -921,17 +935,22 @@ function App() {
               </div>
             </div>
           </section>
+          ) : null}
 
           {message ? <p className="flash-message">{message}</p> : null}
 
+          {activeFeature === 'overview' ? (
           <section className="metric-strip">
             {topMetrics.map((item) => (
               <MetricCard key={item.label} {...item} />
             ))}
           </section>
+          ) : null}
 
+          {activeFeature !== 'overview' ? (
           <div className="content-grid">
             <div className="main-column">
+              {activeFeature === 'quick-pick' ? (
               <section id="quick-pick" className="panel">
                 <SectionTitle
                   icon={Sparkles}
@@ -1038,7 +1057,9 @@ function App() {
                   </p>
                 </div>
               </section>
+              ) : null}
 
+              {activeFeature === 'dream-number' ? (
               <section id="dream-number" className="panel">
                 <SectionTitle
                   icon={BookOpenText}
@@ -1072,7 +1093,9 @@ function App() {
                   วิเคราะห์ความฝัน
                 </button>
               </section>
+              ) : null}
 
+              {activeFeature === 'story-number' ? (
               <section id="story-number" className="panel">
                 <SectionTitle
                   icon={SearchCheck}
@@ -1106,7 +1129,9 @@ function App() {
                   วิเคราะห์สิ่งที่เจอ
                 </button>
               </section>
+              ) : null}
 
+              {activeFeature === 'prize-checker' ? (
               <section id="prize-checker" className="panel">
                 <SectionTitle
                   icon={Trophy}
@@ -1199,7 +1224,9 @@ function App() {
                   </div>
                 ) : null}
               </section>
+              ) : null}
 
+              {activeFeature === 'history-summary' ? (
               <section id="history-summary" className="panel">
                 <SectionTitle
                   icon={Activity}
@@ -1347,7 +1374,9 @@ function App() {
                   </div>
                 </div>
               </section>
+              ) : null}
 
+              {activeFeature === 'results-feed' ? (
               <section id="results-feed" className="panel">
                 <SectionTitle
                   icon={History}
@@ -1421,6 +1450,7 @@ function App() {
                   ) : null}
                 </div>
               </section>
+              ) : null}
             </div>
 
             <aside className="side-column">
@@ -1487,6 +1517,7 @@ function App() {
               </section>
             </aside>
           </div>
+          ) : null}
 
           <section className="panel footer-panel">
             <div className="footer-panel__copy">
