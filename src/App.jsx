@@ -834,15 +834,16 @@ function App() {
             <Terminal size={18} />
             Lotto Helper
           </button>
-          <nav className="topnav">
-            {NAV_ITEMS.map((item) => (
+          <nav className="topnav" aria-label="ฟังก์ชันหลัก">
+            {NAV_ITEMS.map(({ id, label, icon }) => (
               <button
-                key={item.id}
+                key={id}
                 type="button"
-                className={activeFeature === item.id ? 'is-active' : ''}
-                onClick={() => setActiveFeature(item.id)}
+                className={activeFeature === id ? 'is-active' : ''}
+                onClick={() => setActiveFeature(id)}
               >
-                {item.label}
+                {createElement(icon, { size: 16 })}
+                <span>{label}</span>
               </button>
             ))}
           </nav>
@@ -858,29 +859,6 @@ function App() {
       </header>
 
       <main className="workspace">
-        <aside className="side-rail">
-          {NAV_ITEMS.map(({ id, label, icon }) => (
-            <button
-              key={id}
-              type="button"
-              className={`side-rail__item ${activeFeature === id ? 'is-active' : ''}`}
-              onClick={() => setActiveFeature(id)}
-              aria-label={label}
-              title={label}
-            >
-              {createElement(icon, { size: 18 })}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="side-rail__item side-rail__item--muted"
-            onClick={() => window.location.reload()}
-            aria-label="Reload interface"
-          >
-            <RefreshCcw size={18} />
-          </button>
-        </aside>
-
         <div className="dashboard-stack">
           {activeFeature === 'overview' ? (
           <section id="overview" className="panel hero-panel">
