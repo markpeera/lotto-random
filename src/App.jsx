@@ -115,6 +115,21 @@ function buildResultsLoadNotice(error, cached) {
   return `${baseMessage} กรุณาลองใหม่อีกครั้งภายหลัง`
 }
 
+function getDrawSortValue(drawDate) {
+  const match = String(drawDate ?? '').match(/^(\d{2})(\d{2})(\d{4})$/)
+
+  if (!match) {
+    return 0
+  }
+
+  const [, day, month, buddhistYear] = match
+  return Number(`${buddhistYear}${month}${day}`)
+}
+
+function sortResultsByLatest(items) {
+  return [...items].sort((a, b) => getDrawSortValue(b.drawDate) - getDrawSortValue(a.drawDate))
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat('th-TH', {
     maximumFractionDigits: 0,
@@ -360,12 +375,17 @@ function buildQuickPickWeights(historicalSummary, mode) {
 }
 
 function getCachedResults() {
-  return readStorage(STORAGE_KEYS.lotteryResultsCache, {
+  const cached = readStorage(STORAGE_KEYS.lotteryResultsCache, {
     items: [],
     fetchedAt: null,
     requestedLimit: DEFAULT_RESULTS_LIMIT,
     loadedPages: 0,
   })
+
+  return {
+    ...cached,
+    items: sortResultsByLatest(Array.isArray(cached.items) ? cached.items : []),
+  }
 }
 
 function getInitialRefreshMinutes() {
@@ -553,7 +573,7 @@ function App() {
         }
 
         const resultPayload = data.response
-        const items = resultPayload.items
+        const items = sortResultsByLatest(resultPayload.items)
         if (items.length === 0) {
           throw new Error('ไม่พบข้อมูลงวดจากระบบกลาง')
         }

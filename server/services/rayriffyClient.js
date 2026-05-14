@@ -43,6 +43,21 @@ function createBatchError(message, settledResults) {
   return error
 }
 
+function getDrawSortValue(drawId) {
+  const match = String(drawId ?? '').match(/^(\d{2})(\d{2})(\d{4})$/)
+
+  if (!match) {
+    return 0
+  }
+
+  const [, day, month, buddhistYear] = match
+  return Number(`${buddhistYear}${month}${day}`)
+}
+
+function sortDrawItemsByLatest(items) {
+  return [...items].sort((a, b) => getDrawSortValue(b.drawDate) - getDrawSortValue(a.drawDate))
+}
+
 export async function fetchLotteryResults(limit) {
   const pageCount = Math.min(
     MAX_HISTORY_LIST_PAGES,
@@ -68,7 +83,11 @@ export async function fetchLotteryResults(limit) {
     throw createBatchError('Unable to load lottery result list', listResponses)
   }
 
-  const drawIds = [...new Set(listItems.map((item) => item.id).filter(Boolean))].slice(0, limit)
+  const drawIds = [...new Set(listItems
+    .map((item) => item.id)
+    .filter(Boolean))]
+    .sort((a, b) => getDrawSortValue(b) - getDrawSortValue(a))
+    .slice(0, limit)
   const drawDetails = await runSettledInBatches(
     drawIds,
     DETAIL_REQUEST_BATCH_SIZE,
@@ -93,7 +112,7 @@ export async function fetchLotteryResults(limit) {
   }
 
   return {
-    items,
+    items: sortDrawItemsByLatest(items),
     fetchedAt: new Date().toISOString(),
     requestedLimit: limit,
     loadedPages,

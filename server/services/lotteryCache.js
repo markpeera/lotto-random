@@ -5,6 +5,22 @@ import { CACHE_FILE, CACHE_TTL_MS } from '../config.js'
 const cache = new Map()
 const inFlightRequests = new Map()
 
+function parseLimitFromCacheKey(key) {
+  const match = key.match(/^lottery-results:(\d+)$/)
+  return match ? Number(match[1]) : null
+}
+
+function isUsableCacheEntry(key, value) {
+  const keyLimit = parseLimitFromCacheKey(key)
+  const requestedLimit = Number(value?.payload?.requestedLimit)
+
+  return typeof key === 'string'
+    && keyLimit !== null
+    && Number.isFinite(requestedLimit)
+    && requestedLimit === keyLimit
+    && value?.payload?.items?.length > 0
+}
+
 export async function loadPersistentCache() {
   try {
     const raw = await readFile(CACHE_FILE, 'utf8')
@@ -15,7 +31,7 @@ export async function loadPersistentCache() {
     }
 
     entries.forEach(([key, value]) => {
-      if (typeof key === 'string' && value?.payload?.items?.length > 0) {
+      if (isUsableCacheEntry(key, value)) {
         cache.set(key, value)
       }
     })
@@ -35,6 +51,11 @@ async function persistCache() {
 
 function getCacheKey(limit) {
   return `lottery-results:${limit}`
+}
+
+function isCachedPayloadForLimit(cached, limit) {
+  return Number(cached?.payload?.requestedLimit) === limit
+    && cached?.payload?.items?.length > 0
 }
 
 function cloneCachedPayload(cached, limit) {
@@ -70,7 +91,7 @@ export async function getCachedOrFreshLotteryResults(limit, fetchFreshResults) {
   const cached = cache.get(cacheKey)
   const now = Date.now()
 
-  if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
+  if (cached && isCachedPayloadForLimit(cached, limit) && now - cached.cachedAt < CACHE_TTL_MS) {
     return {
       ...cached.payload,
       cache: { hit: true, stale: false, ttlMs: CACHE_TTL_MS },
