@@ -8,6 +8,8 @@ import {
 import { runSettledInBatches } from '../lib/async.js'
 import { normalizeResultDetail } from './lotteryNormalizer.js'
 
+const DETAIL_REQUEST_RETRY_DELAYS_MS = [600, 1200, 2400]
+
 class ExternalApiError extends Error {
   constructor(message, { status, url } = {}) {
     super(message)
@@ -35,6 +37,33 @@ async function fetchJson(url) {
   return response.json()
 }
 
+function waitFor(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+async function fetchJsonWithRetries(url) {
+  let lastError
+
+  for (let attempt = 0; attempt <= DETAIL_REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await fetchJson(url)
+    } catch (error) {
+      lastError = error
+
+      const delayMs = DETAIL_REQUEST_RETRY_DELAYS_MS[attempt]
+      if (delayMs === undefined) {
+        break
+      }
+
+      await waitFor(delayMs)
+    }
+  }
+
+  throw lastError
+}
+
 function createBatchError(message, settledResults) {
   const error = new Error(message)
   error.errors = settledResults
@@ -56,6 +85,19 @@ function getDrawSortValue(drawId) {
 
 function sortDrawItemsByLatest(items) {
   return [...items].sort((a, b) => getDrawSortValue(b.drawDate) - getDrawSortValue(a.drawDate))
+}
+
+function createFallbackDrawDetail(draw) {
+  return {
+    drawDate: draw.id,
+    drawPeriod: draw.date ?? draw.id,
+    firstPrize: '-',
+    last2: '-',
+    front3: [],
+    back3: [],
+    allPrizes: [],
+    partial: true,
+  }
 }
 
 export async function fetchLotteryResults(limit) {
@@ -83,16 +125,20 @@ export async function fetchLotteryResults(limit) {
     throw createBatchError('Unable to load lottery result list', listResponses)
   }
 
-  const drawIds = [...new Set(listItems
-    .map((item) => item.id)
-    .filter(Boolean))]
+  const drawSummaries = [...new Map(listItems
+    .filter((item) => item?.id)
+    .map((item) => [item.id, {
+      id: item.id,
+      date: item.date,
+    }])).values()]
     .sort((a, b) => getDrawSortValue(b) - getDrawSortValue(a))
     .slice(0, limit)
   const drawDetails = await runSettledInBatches(
-    drawIds,
+    drawSummaries,
     DETAIL_REQUEST_BATCH_SIZE,
-    async (drawId) => {
-      const data = await fetchJson(`${LOTTO_API_BASE}/lotto/${drawId}`)
+    async (draw) => {
+      const drawId = draw.id
+      const data = await fetchJsonWithRetries(`${LOTTO_API_BASE}/lotto/${drawId}`)
 
       if (data?.status !== 'success' || !data?.response) {
         throw new Error(`Invalid detail response for draw ${drawId}`)
@@ -103,9 +149,11 @@ export async function fetchLotteryResults(limit) {
     DETAIL_REQUEST_BATCH_DELAY_MS,
   )
 
-  const items = drawDetails
-    .filter((item) => item.status === 'fulfilled')
-    .map((item) => item.value)
+  const items = drawDetails.map((item, index) => (
+    item.status === 'fulfilled'
+      ? item.value
+      : createFallbackDrawDetail(drawSummaries[index])
+  ))
 
   if (items.length === 0) {
     throw createBatchError('Unable to load lottery result details', drawDetails)
@@ -118,6 +166,7 @@ export async function fetchLotteryResults(limit) {
     loadedPages,
     pageCount,
     source: LOTTO_API_BASE,
-    partial: items.length < drawIds.length,
+    partial: drawDetails.some((item) => item.status === 'rejected')
+      || items.length < drawSummaries.length,
   }
 }

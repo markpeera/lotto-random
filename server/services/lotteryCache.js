@@ -13,12 +13,15 @@ function parseLimitFromCacheKey(key) {
 function isUsableCacheEntry(key, value) {
   const keyLimit = parseLimitFromCacheKey(key)
   const requestedLimit = Number(value?.payload?.requestedLimit)
+  const itemCount = Number(value?.payload?.items?.length ?? 0)
+  const isPartialPayload = value?.payload?.partial === true
 
   return typeof key === 'string'
     && keyLimit !== null
     && Number.isFinite(requestedLimit)
     && requestedLimit === keyLimit
-    && value?.payload?.items?.length > 0
+    && itemCount >= requestedLimit
+    && !isPartialPayload
 }
 
 export async function loadPersistentCache() {
@@ -55,7 +58,8 @@ function getCacheKey(limit) {
 
 function isCachedPayloadForLimit(cached, limit) {
   return Number(cached?.payload?.requestedLimit) === limit
-    && cached?.payload?.items?.length > 0
+    && Number(cached?.payload?.items?.length ?? 0) >= limit
+    && cached?.payload?.partial !== true
 }
 
 function cloneCachedPayload(cached, limit) {
@@ -69,19 +73,13 @@ function cloneCachedPayload(cached, limit) {
 function findUsableCache(limit) {
   const exact = cache.get(getCacheKey(limit))
 
-  if (exact) {
+  if (isCachedPayloadForLimit(exact, limit)) {
     return exact
   }
 
   return [...cache.values()]
-    .filter((item) => item?.payload?.items?.length > 0)
+    .filter((item) => Number(item?.payload?.items?.length ?? 0) >= limit)
     .sort((a, b) => {
-      const enoughItems = Number(b.payload.items.length >= limit) - Number(a.payload.items.length >= limit)
-
-      if (enoughItems !== 0) {
-        return enoughItems
-      }
-
       return b.cachedAt - a.cachedAt
     })[0]
 }
@@ -101,11 +99,13 @@ export async function getCachedOrFreshLotteryResults(limit, fetchFreshResults) {
   if (!inFlightRequests.has(cacheKey)) {
     inFlightRequests.set(cacheKey, fetchFreshResults(limit)
       .then((payload) => {
-        cache.set(cacheKey, {
-          cachedAt: Date.now(),
-          payload,
-        })
-        persistCache()
+        if (payload.partial !== true) {
+          cache.set(cacheKey, {
+            cachedAt: Date.now(),
+            payload,
+          })
+          persistCache()
+        }
         return payload
       })
       .finally(() => {

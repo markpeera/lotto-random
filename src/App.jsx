@@ -374,17 +374,26 @@ function buildQuickPickWeights(historicalSummary, mode) {
   )
 }
 
-function getCachedResults() {
+function getCachedResults(requiredLimit = DEFAULT_RESULTS_LIMIT) {
   const cached = readStorage(STORAGE_KEYS.lotteryResultsCache, {
     items: [],
     fetchedAt: null,
     requestedLimit: DEFAULT_RESULTS_LIMIT,
     loadedPages: 0,
   })
+  const sortedItems = sortResultsByLatest(Array.isArray(cached.items) ? cached.items : [])
+  const requestedLimit = Number(cached.requestedLimit)
+
+  if (!Number.isFinite(requestedLimit) || requestedLimit < requiredLimit || sortedItems.length < requiredLimit) {
+    return {
+      ...cached,
+      items: [],
+    }
+  }
 
   return {
     ...cached,
-    items: sortResultsByLatest(Array.isArray(cached.items) ? cached.items : []),
+    items: sortedItems.slice(0, requiredLimit),
   }
 }
 
@@ -512,6 +521,7 @@ function MetricCard({ label, value, meta }) {
 }
 
 function App() {
+  const initialHistoryLimit = getInitialHistoryLimit()
   const [activeFeature, setActiveFeature] = useState('quick-pick')
   const [quickForm, setQuickForm] = useState(DEFAULT_QUICK_FORM)
   const [dreamText, setDreamText] = useState('')
@@ -521,16 +531,16 @@ function App() {
   const [recentSlips, setRecentSlips] = useState(() => readStorage(STORAGE_KEYS.recentGenerations, []))
   const [savedSlips, setSavedSlips] = useState(() => readStorage(STORAGE_KEYS.savedSlips, []))
   const [message, setMessage] = useState('')
-  const [resultsFeed, setResultsFeed] = useState(() => getCachedResults().items)
+  const [resultsFeed, setResultsFeed] = useState(() => getCachedResults(initialHistoryLimit).items)
   const [resultsSourceLabel, setResultsSourceLabel] = useState(() => {
-    const cached = getCachedResults()
+    const cached = getCachedResults(initialHistoryLimit)
     return cached.items.length > 0
       ? `แสดงจาก localStorage cache ล่าสุด ${cached.items.length} งวด (${cached.fetchedAt ?? 'ไม่ระบุเวลา'})`
       : 'กำลังรอโหลดผลจาก API ภายนอก'
   })
-  const [lastResultsSync, setLastResultsSync] = useState(() => getCachedResults().fetchedAt)
+  const [lastResultsSync, setLastResultsSync] = useState(() => getCachedResults(initialHistoryLimit).fetchedAt)
   const [refreshMinutes, setRefreshMinutes] = useState(getInitialRefreshMinutes)
-  const [historyLimit, setHistoryLimit] = useState(getInitialHistoryLimit)
+  const [historyLimit, setHistoryLimit] = useState(initialHistoryLimit)
   const [isResultsLoading, setIsResultsLoading] = useState(false)
   const timerRef = useRef(null)
 
@@ -600,7 +610,7 @@ function App() {
           )
         }
       } catch (error) {
-        const cached = getCachedResults()
+        const cached = getCachedResults(historyLimit)
 
         if (isActive) {
           if (cached.items.length > 0) {
