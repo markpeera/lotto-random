@@ -1,5 +1,6 @@
 import { DEFAULT_RESULTS_LIMIT, MAX_RESULTS_LIMIT } from '../config.js'
 import { getCachedOrFreshLotteryResults } from './lotteryCache.js'
+import { applyManualOverrides } from './manualOverrideService.js'
 import { fetchLotteryResults } from './rayriffyClient.js'
 
 export function clampLimit(value) {
@@ -14,4 +15,5 @@ export function clampLimit(value) {
 
 export function getLotteryResults(limit) {
   return getCachedOrFreshLotteryResults(limit, fetchLotteryResults)
+    .then((payload) => applyManualOverrides(payload))
 }

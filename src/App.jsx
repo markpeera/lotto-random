@@ -245,12 +245,7 @@ function sortByCountThenValue(entries) {
 }
 
 function getResultDigitPool(draw) {
-  return [
-    draw.firstPrize,
-    draw.last2,
-    ...(draw.front3 ?? []),
-    ...(draw.back3 ?? []),
-  ]
+  return [draw.firstPrize, draw.last2, ...(draw.front3 ?? []), ...(draw.back3 ?? [])]
     .filter(Boolean)
     .join('')
     .replace(/[^\d]/g, '')
@@ -324,15 +319,9 @@ function buildHistoricalSummary(resultsFeed, savedSlips, drawLimit) {
       title: slip.title,
     })),
   )
-  const savedHistoricalHits = savedCandidates
-    .filter((item) => historicalLast2.has(item.value))
-    .slice(0, 8)
-  const savedFrequentHits = savedCandidates
-    .filter((item) => frequentLast2Set.has(item.value))
-    .slice(0, 8)
-  const savedOverdueHits = savedCandidates
-    .filter((item) => overdueLast2Set.has(item.value))
-    .slice(0, 8)
+  const savedHistoricalHits = savedCandidates.filter((item) => historicalLast2.has(item.value)).slice(0, 8)
+  const savedFrequentHits = savedCandidates.filter((item) => frequentLast2Set.has(item.value)).slice(0, 8)
+  const savedOverdueHits = savedCandidates.filter((item) => overdueLast2Set.has(item.value)).slice(0, 8)
 
   return {
     drawCount: recentDraws.length,
@@ -368,7 +357,6 @@ function buildQuickPickWeights(historicalSummary, mode) {
     DIGIT_CHARS.map((digit) => {
       const count = counts.get(digit) ?? 0
       const weight = mode === 'hot' ? count + 1 : maxCount - count + 1
-
       return [digit, weight]
     }),
   )
@@ -411,7 +399,6 @@ function getInitialRefreshMinutes() {
 function getInitialHistoryLimit() {
   const preferences = readStorage(STORAGE_KEYS.uiPreferences, {})
   const fromStorage = Number(preferences.historyResultsLimit)
-
   return HISTORY_LIMIT_OPTIONS.includes(fromStorage) ? fromStorage : DEFAULT_RESULTS_LIMIT
 }
 
@@ -435,13 +422,13 @@ function SectionTitle({ icon, eyebrow, title, description, action }) {
   const Icon = icon
 
   return (
-    <div className="section-heading">
+    <header className="section-heading">
       <div className="section-heading__copy">
         <p className="eyebrow">{eyebrow}</p>
         <div className="section-heading__title">
-          <div className="section-icon">
-            <Icon size={17} />
-          </div>
+          <span className="section-icon" aria-hidden="true">
+            <Icon size={18} />
+          </span>
           <div>
             <h2>{title}</h2>
             <p>{description}</p>
@@ -449,7 +436,7 @@ function SectionTitle({ icon, eyebrow, title, description, action }) {
         </div>
       </div>
       {action ? <div className="section-heading__action">{action}</div> : null}
-    </div>
+    </header>
   )
 }
 
@@ -466,10 +453,10 @@ function NumberGroup({ label, values }) {
 
 function SlipCard({ slip, onSave, onShare, isSaved }) {
   return (
-    <article className="panel slip-card">
-      <div className="panel-label-row">
+    <article className="tool-card slip-card">
+      <div className="card-topline">
         <p className="eyebrow">ผลลัพธ์ล่าสุด</p>
-        <span className="inline-status">{slip.sourceType}</span>
+        <span className="status-badge">{slip.sourceType}</span>
       </div>
 
       <div className="slip-head">
@@ -517,6 +504,43 @@ function MetricCard({ label, value, meta }) {
       <strong>{value}</strong>
       <p>{meta}</p>
     </article>
+  )
+}
+
+function FeatureNav({ items, activeFeature, onChange }) {
+  return (
+    <div className="feature-nav" role="tablist" aria-label="ฟังก์ชันหลัก">
+      {items.map(({ id, label, icon }) => (
+        <button
+          key={id}
+          id={`tab-${id}`}
+          type="button"
+          role="tab"
+          aria-selected={activeFeature === id}
+          aria-controls={`panel-${id}`}
+          className={`feature-nav__button ${activeFeature === id ? 'is-active' : ''}`}
+          onClick={() => onChange(id)}
+        >
+          {createElement(icon, { size: 16, 'aria-hidden': 'true' })}
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ShortcutCard({ icon, title, description, meta, onClick, active }) {
+  return (
+    <button type="button" className={`shortcut-card ${active ? 'is-active' : ''}`} onClick={onClick}>
+      <span className="shortcut-card__icon" aria-hidden="true">
+        {createElement(icon, { size: 18 })}
+      </span>
+      <span className="shortcut-card__copy">
+        <strong>{title}</strong>
+        <span>{description}</span>
+      </span>
+      <span className="shortcut-card__meta">{meta}</span>
+    </button>
   )
 }
 
@@ -718,27 +742,102 @@ function App() {
   const topMetrics = useMemo(
     () => [
       {
-        label: 'Active_Generations',
+        label: 'โพยล่าสุด',
         value: String(recentSlips.length).padStart(2, '0'),
-        meta: 'โพยล่าสุดในเครื่อง',
+        meta: 'ชุดที่สร้างไว้ในเครื่อง',
       },
       {
-        label: 'ที่บันทึกไว้',
+        label: 'รายการบันทึก',
         value: String(savedSlips.length).padStart(2, '0'),
-        meta: 'รายการที่กดบันทึกไว้',
+        meta: 'เก็บไว้ใช้งานภายหลัง',
       },
       {
-        label: 'รอบรีเฟรช',
+        label: 'รีเฟรชข้อมูล',
         value: `${refreshMinutes}m`,
-        meta: 'รอบดึงผล API อัตโนมัติ',
+        meta: 'ดึงผลสลากอัตโนมัติ',
       },
       {
-        label: 'สถานะข้อมูล',
+        label: 'สถานะระบบ',
         value: resultsFeed.length > 0 ? 'พร้อมใช้' : 'รอโหลด',
-        meta: resultsFeed.length > 0 ? 'มีข้อมูลผลล่าสุด' : 'รอข้อมูลภายนอก',
+        meta: resultsFeed.length > 0 ? 'มีข้อมูลงวดล่าสุดแล้ว' : 'กำลังเชื่อมต่อข้อมูลภายนอก',
       },
     ],
     [recentSlips.length, refreshMinutes, resultsFeed.length, savedSlips.length],
+  )
+  const latestDraw = resultsFeed[0] ?? null
+  const activeFeatureMeta = useMemo(
+    () =>
+      ({
+        overview: {
+          eyebrow: 'Dashboard',
+          title: 'ภาพรวมการใช้งาน',
+          description: 'สรุปทุก workflow หลักในหน้าเดียว พร้อมจุดเข้าใช้งานที่เร็วขึ้นและสถานะข้อมูลแบบสด',
+        },
+        'quick-pick': {
+          eyebrow: 'Generator',
+          title: 'สุ่มเลขเร็ว',
+          description: 'เลือกโหมดสุ่ม, กำหนดหลักที่ต้องการ, และสร้างโพย 2/3/6 หลักในจังหวะเดียว',
+        },
+        'dream-number': {
+          eyebrow: 'Text Analysis',
+          title: 'ตีเลขจากความฝัน',
+          description: 'ป้อน narrative สั้น ๆ แล้วให้ระบบดึง keyword และชุดเลขสำคัญออกมาเป็นโพยพร้อมแชร์',
+        },
+        'story-number': {
+          eyebrow: 'Signal Capture',
+          title: 'ตีเลขจากสิ่งที่เจอ',
+          description: 'ใช้กับทะเบียนรถ เวลา ใบเสร็จ หรือเหตุการณ์รายวัน แล้วแปลงเป็นชุดเลขเด่นอย่างเป็นระบบ',
+        },
+        'prize-checker': {
+          eyebrow: 'Verification',
+          title: 'ตรวจหวยหลายเลข',
+          description: 'วางเลขสลากได้หลายใบ เลือกงวดเดียว แล้วให้ระบบคัดเฉพาะใบที่ถูกรางวัลพร้อมรวมยอดเงินทันที',
+        },
+        'history-summary': {
+          eyebrow: 'Historical Signals',
+          title: 'สรุปสถิติย้อนหลัง',
+          description: 'ดูความถี่เลขท้าย 2 ตัว, ช่วงห่างจากงวดล่าสุด, และเทียบกับเลขในโพยที่บันทึกไว้',
+        },
+        'results-feed': {
+          eyebrow: 'Results Feed',
+          title: 'ผลย้อนหลัง',
+          description: 'ติดตามผลรางวัลย้อนหลังจากระบบกลาง พร้อมสถานะ cache และข้อมูลรีเฟรชล่าสุด',
+        },
+      })[activeFeature],
+    [activeFeature],
+  )
+  const shortcutCards = useMemo(
+    () => [
+      {
+        id: 'quick-pick',
+        title: 'สุ่มเลขทันที',
+        description: 'สร้างโพยใหม่จาก mode ปัจจุบัน',
+        meta: quickSummary,
+        icon: Sparkles,
+      },
+      {
+        id: 'prize-checker',
+        title: 'ตรวจรางวัล',
+        description: 'วางเลขหลายใบและคัดเฉพาะใบที่ถูก',
+        meta: selectedDraw?.drawPeriod ?? 'รอข้อมูลงวด',
+        icon: Trophy,
+      },
+      {
+        id: 'history-summary',
+        title: 'ดูสถิติย้อนหลัง',
+        description: 'ใช้ความถี่เลขช่วยอ่านภาพรวมย้อนหลัง',
+        meta: `${historicalSummary.drawCount}/${historyLimit} งวด`,
+        icon: Activity,
+      },
+      {
+        id: 'results-feed',
+        title: 'เช็กผลล่าสุด',
+        description: 'ดูรางวัลที่ 1 และเลขวิ่งในงวดล่าสุด',
+        meta: latestDraw?.drawPeriod ?? 'รอผลล่าสุด',
+        icon: History,
+      },
+    ],
+    [historyLimit, historicalSummary.drawCount, latestDraw?.drawPeriod, quickSummary, selectedDraw?.drawPeriod],
   )
 
   const setFlashMessage = (text) => {
@@ -856,612 +955,763 @@ function App() {
     }
   }
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand-row">
-          <button type="button" className="brand-mark" onClick={() => setActiveFeature('overview')}>
-            <Terminal size={18} />
-            Lotto Helper
-          </button>
-          <nav className="topnav" aria-label="ฟังก์ชันหลัก">
-            {NAV_ITEMS.map(({ id, label, icon }) => (
-              <button
-                key={id}
-                type="button"
-                className={activeFeature === id ? 'is-active' : ''}
-                onClick={() => setActiveFeature(id)}
+  const renderOverview = () => (
+    <section id="panel-overview" className="tool-surface" aria-labelledby="tab-overview">
+      <SectionTitle
+        icon={Terminal}
+        eyebrow="Command Center"
+        title="เริ่มจากงานที่ต้องทำตอนนี้"
+        description="โครงหน้าใหม่ลดความรกของ workflow เดิมด้วยการดันจุดเริ่มต้น, สถานะข้อมูล, และทางลัดแต่ละโหมดขึ้นมาให้อยู่ในแนวสายตาแรก"
+        action={<span className="status-badge">พร้อมใช้งาน</span>}
+      />
+
+      <div className="overview-shortcuts">
+        {shortcutCards.map((item) => (
+          <ShortcutCard
+            key={item.id}
+            {...item}
+            active={activeFeature === item.id}
+            onClick={() => setActiveFeature(item.id)}
+          />
+        ))}
+      </div>
+
+      <div className="overview-grid">
+        <article className="summary-panel">
+          <div className="card-topline">
+            <p className="eyebrow">งวดล่าสุด</p>
+            <span className="status-badge">{latestDraw?.drawPeriod ?? 'รอข้อมูล'}</span>
+          </div>
+          {latestDraw ? (
+            <div className="draw-hero">
+              <div>
+                <span>รางวัลที่ 1</span>
+                <strong>{latestDraw.firstPrize}</strong>
+              </div>
+              <div className="draw-hero__chips">
+                <b>ท้าย 2 ตัว {latestDraw.last2}</b>
+                <b>หน้า 3 ตัว {latestDraw.front3.join(' / ')}</b>
+                <b>ท้าย 3 ตัว {latestDraw.back3.join(' / ')}</b>
+              </div>
+            </div>
+          ) : (
+            <p className="empty-copy">ยังไม่มีข้อมูลผลสลากล่าสุดในขณะนี้</p>
+          )}
+        </article>
+
+        <article className="summary-panel">
+          <div className="card-topline">
+            <p className="eyebrow">สถิติย้อนหลัง</p>
+            <span className="status-badge">{historicalSummary.drawCount} งวด</span>
+          </div>
+          <div className="signal-grid">
+            <div>
+              <span>เลขท้าย 2 ตัวเด่น</span>
+              <strong>{historicalSummary.frequentLast2[0]?.value ?? '--'}</strong>
+              <p>{historicalSummary.frequentLast2[0] ? `${historicalSummary.frequentLast2[0].count} ครั้ง` : 'รอข้อมูลย้อนหลัง'}</p>
+            </div>
+            <div>
+              <span>เลขเด่นสุด</span>
+              <strong>{historicalSummary.standoutDigits[0]?.value ?? '--'}</strong>
+              <p>{historicalSummary.standoutDigits[0] ? `${historicalSummary.standoutDigits[0].count} จุด` : 'ยังไม่มีสัญญาณเด่น'}</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+
+  const renderQuickPick = () => (
+    <section id="panel-quick-pick" className="tool-surface" aria-labelledby="tab-quick-pick">
+      <SectionTitle
+        icon={Sparkles}
+        eyebrow="Generator"
+        title="สุ่มเลขเร็ว"
+        description="ลดจำนวน field ที่ผู้ใช้ต้องสแกนด้วยกลุ่ม control ชุดเดียว แล้วใช้ side summary ช่วยอธิบายโหมดสุ่มปัจจุบัน"
+        action={<span className="status-badge">{QUICK_RANDOM_MODES[quickForm.randomMode]}</span>}
+      />
+
+      <div className="tool-layout tool-layout--split">
+        <div className="form-stack">
+          <div className="form-grid form-grid--triple">
+            <label htmlFor="quick-digits">
+              จำนวนหลัก
+              <select
+                id="quick-digits"
+                value={quickForm.digits}
+                onChange={(event) => setQuickForm((prev) => ({ ...prev, digits: Number(event.target.value) }))}
               >
-                {createElement(icon, { size: 16 })}
-                <span>{label}</span>
-              </button>
+                <option value={2}>2 ตัว</option>
+                <option value={3}>3 ตัว</option>
+                <option value={6}>6 ตัว</option>
+              </select>
+            </label>
+
+            <label htmlFor="quick-sets">
+              จำนวนชุด
+              <input
+                id="quick-sets"
+                type="number"
+                min="1"
+                max="8"
+                value={quickForm.sets}
+                onChange={(event) =>
+                  setQuickForm((prev) => ({
+                    ...prev,
+                    sets: Math.min(8, Math.max(1, Number(event.target.value) || 1)),
+                  }))
+                }
+              />
+            </label>
+
+            <label htmlFor="quick-mode">
+              วิธีสุ่ม
+              <select
+                id="quick-mode"
+                value={quickForm.randomMode}
+                onChange={(event) => setQuickForm((prev) => ({ ...prev, randomMode: event.target.value }))}
+              >
+                {Object.entries(QUICK_RANDOM_MODES).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="locked-grid">
+            {Array.from({ length: quickForm.digits }).map((_, index) => (
+              <label key={`lock-${index}`} htmlFor={`lock-${index}`}>
+                ล็อกหลัก {index + 1}
+                <input
+                  id={`lock-${index}`}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={quickForm.lockedDigits[index]}
+                  onChange={(event) => {
+                    const next = [...quickForm.lockedDigits]
+                    next[index] = event.target.value.replace(/[^\d]/g, '').slice(0, 1)
+                    setQuickForm((prev) => ({ ...prev, lockedDigits: next }))
+                  }}
+                />
+              </label>
             ))}
-          </nav>
+          </div>
+
+          <label htmlFor="quick-excluded">
+            ตัดเลขที่ไม่ต้องการออก
+            <input
+              id="quick-excluded"
+              type="text"
+              inputMode="numeric"
+              spellCheck="false"
+              placeholder="เช่น 0 หรือ 13 หรือ 668"
+              value={quickForm.excludedDigits}
+              onChange={(event) =>
+                setQuickForm((prev) => ({
+                  ...prev,
+                  excludedDigits: event.target.value.replace(/[^\d]/g, ''),
+                }))
+              }
+            />
+          </label>
+
+          <button type="button" className="primary-btn block-btn" onClick={handleQuickPick}>
+            <Sparkles size={16} />
+            สร้างโพยสุ่มเลข
+          </button>
         </div>
 
-        <div className="topbar-meta">
-          <div className="status-pill">
-            <span className={`status-dot ${isResultsLoading ? 'is-pulsing' : ''}`} />
-            <span>{isResultsLoading ? 'กำลังอัปเดตข้อมูล' : 'พร้อมใช้งาน'}</span>
+        <aside className="tool-aside">
+          <article className="info-card">
+            <span className="eyebrow">กลยุทธ์ที่ใช้</span>
+            <strong>{QUICK_RANDOM_MODES[quickForm.randomMode]}</strong>
+            <p>
+              {quickForm.randomMode === 'balanced'
+                ? 'สุ่มแบบกระจายทุกเลขเท่ากัน เหมาะกับการเริ่มต้นแบบไม่ต้องพึ่งสถิติย้อนหลัง'
+                : `ใช้ความถี่เลขเด่นจาก ${historicalSummary.drawCount}/${historyLimit} งวดล่าสุดเป็นน้ำหนักในการสุ่ม เพื่อช่วยจัดลำดับความสำคัญของเลข`}
+            </p>
+          </article>
+
+          <article className="info-card">
+            <span className="eyebrow">เลขเด่นล่าสุด</span>
+            <div className="display-slots">
+              {displayDigits.map((digit, index) => (
+                <div key={`${digit}-${index}`} className="display-slot">
+                  {digit}
+                </div>
+              ))}
+            </div>
+            <p className="info-card__meta">อ้างอิงจากโพยล่าสุดที่สร้างในเครื่อง</p>
+          </article>
+        </aside>
+      </div>
+    </section>
+  )
+
+  const renderTextAnalysis = (mode) => {
+    const isDream = mode === 'dream'
+    const value = isDream ? dreamText : storyText
+    const setValue = isDream ? setDreamText : setStoryText
+    const rules = isDream ? dreamRules.slice(0, 5) : symbolRules.slice(0, 6)
+    const title = isDream ? 'ตีเลขจากความฝัน' : 'ตีเลขจากสิ่งที่เจอ'
+    const description = isDream
+      ? 'พิมพ์ความฝันแบบภาษาคนจริง แล้วใช้ keyword suggestions ช่วยลดแรงคิดก่อนวิเคราะห์'
+      : 'เก็บเหตุการณ์รายวันเป็นข้อความ แล้วแปลงเป็นตัวเลขเด่นพร้อมชุดแนะนำสำหรับใช้ต่อ'
+    const placeholder = isDream
+      ? 'เช่น ฝันว่างูเข้าบ้านตอนตี 2 หรือฝันว่าฟันหลุด'
+      : 'เช่น เห็นทะเบียนรถ 287 ตอน 6 โมงเย็น หรือเจอใบเสร็จ 120 บาท'
+
+    return (
+      <section
+        id={`panel-${isDream ? 'dream-number' : 'story-number'}`}
+        className="tool-surface"
+        aria-labelledby={`tab-${isDream ? 'dream-number' : 'story-number'}`}
+      >
+        <SectionTitle
+          icon={isDream ? BookOpenText : SearchCheck}
+          eyebrow={isDream ? 'Text Analysis' : 'Daily Capture'}
+          title={title}
+          description={description}
+          action={<span className="status-badge">{isDream ? 'พิมพ์เล่าได้เลย' : 'ใช้กับเหตุการณ์จริง'}</span>}
+        />
+
+        <div className="tool-layout tool-layout--split">
+          <div className="form-stack">
+            <label htmlFor={`${mode}-input`}>
+              {isDream ? 'เล่าความฝัน' : 'เล่าเหตุการณ์ที่เจอ'}
+              <textarea
+                id={`${mode}-input`}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder={placeholder}
+                rows={7}
+              />
+            </label>
+
+            <div className="hint-row" aria-label="คำใบ้ที่กดเติมได้">
+              {rules.map((rule) => (
+                <button
+                  key={rule.keyword}
+                  type="button"
+                  className="tag-btn"
+                  onClick={() => setValue((prev) => `${prev} ${rule.keyword}`.trim())}
+                >
+                  {rule.keyword}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="primary-btn block-btn"
+              onClick={isDream ? handleDreamAnalysis : handleStoryAnalysis}
+            >
+              {createElement(isDream ? BookOpenText : SearchCheck, { size: 16 })}
+              {isDream ? 'วิเคราะห์ความฝัน' : 'วิเคราะห์สิ่งที่เจอ'}
+            </button>
           </div>
-          <div className="status-chip">เลขไทย / บันทึกในเครื่อง</div>
+
+          <aside className="tool-aside">
+            <article className="info-card">
+              <span className="eyebrow">ผลลัพธ์ที่ได้</span>
+              <strong>เลขเด่น + ชุดแนะนำ + เหตุผล</strong>
+              <p>ระบบจะดึง keyword, ตัวเลขที่พบในข้อความ, และกฎจาก dataset เพื่อประกอบเป็นโพยที่อธิบายที่มาได้</p>
+            </article>
+            <article className="info-card">
+              <span className="eyebrow">คำแนะนำการพิมพ์</span>
+              <ul className="bullet-list">
+                <li>พิมพ์เป็นประโยคสั้น ๆ แบบที่คุณเล่าเองจริง</li>
+                <li>ถ้ามีเวลา จำนวนเงิน หรือเลขที่เห็น ให้ใส่ลงไปตรง ๆ</li>
+                <li>ระบบจะเก็บผลล่าสุดไว้ให้บันทึกหรือแชร์ต่อทันที</li>
+              </ul>
+            </article>
+          </aside>
+        </div>
+      </section>
+    )
+  }
+
+  const renderPrizeChecker = () => (
+    <section id="panel-prize-checker" className="tool-surface" aria-labelledby="tab-prize-checker">
+      <SectionTitle
+        icon={Trophy}
+        eyebrow="Verification"
+        title="ตรวจหวยหลายเลข"
+        description="ออกแบบใหม่ให้ flow ชัดขึ้น: เลือกงวดใน header, วางเลขหลายใบ, ดูเฉพาะเลขที่ถูกรางวัล และรวมยอดเงินแบบไม่รบกวนสายตา"
+        action={
+          <label className="action-select" htmlFor="selected-draw">
+            <span>งวดที่ตรวจ</span>
+            <select
+              id="selected-draw"
+              className="checker-draw-select"
+              value={selectedDraw?.drawDate ?? ''}
+              onChange={(event) => setSelectedDrawDate(event.target.value)}
+              disabled={resultsFeed.length === 0}
+            >
+              {resultsFeed.length > 0 ? (
+                resultsFeed.map((item) => (
+                  <option key={item.drawDate} value={item.drawDate}>
+                    {item.drawPeriod}
+                  </option>
+                ))
+              ) : (
+                <option value="">รอโหลดผลสลาก</option>
+              )}
+            </select>
+          </label>
+        }
+      />
+
+      <div className="tool-layout tool-layout--split">
+        <div className="form-stack">
+          <label htmlFor="ticket-input">
+            เลขสลากกินแบ่ง
+            <textarea
+              id="ticket-input"
+              className="checker-input"
+              value={ticketInput}
+              inputMode="numeric"
+              spellCheck="false"
+              placeholder={'เช่น 123456, 444444 หรือวางหลายบรรทัด\n123456\n789012\n444444'}
+              rows={8}
+              onChange={(event) => setTicketInput(event.target.value)}
+            />
+          </label>
+          <p className="helper-copy">รองรับการวางหลายเลขพร้อมกัน ระบบจะคัดเฉพาะใบที่ถูกรางวัลมาแสดงผลให้โดยอัตโนมัติ</p>
+        </div>
+
+        <aside className="tool-aside">
+          <article className={`checker-summary ${canCheckTicket ? 'is-ready' : ''}`}>
+            <div>
+              <span className="eyebrow">ผลการตรวจ</span>
+              <strong>
+                {canCheckTicket
+                  ? checkerSummary.totalMatches > 0
+                    ? `พบ ${checkerSummary.totalMatches} รางวัล จาก ${checkerSummary.winningTickets} ใบ`
+                    : 'ยังไม่มีเลขถูกรางวัล'
+                  : 'วางเลข 6 หลักได้หลายรายการ'}
+              </strong>
+              <p>
+                {selectedDraw
+                  ? `ตรวจ ${ticketNumbers.length} ใบ จาก ${checkerSummary.checkedPrizeCount} หมายเลขรางวัลของงวด ${selectedDraw.drawPeriod}`
+                  : 'ระบบจะตรวจได้หลังจากโหลดผลสลากสำเร็จ'}
+              </p>
+            </div>
+            <div className="checker-total">
+              <span>เงินรางวัลรวม</span>
+              <strong>{formatCurrency(checkerSummary.totalPrize)} บาท</strong>
+            </div>
+          </article>
+        </aside>
+      </div>
+
+      {canCheckTicket && winningTicketChecks.length > 0 ? (
+        <div className="checker-matches">
+          {winningTicketChecks.map((check) => (
+            <article key={check.normalizedTicket} className="checker-ticket-result is-winning">
+              <div className="checker-ticket-head">
+                <div>
+                  <span className="eyebrow">เลขสลาก</span>
+                  <strong>{check.normalizedTicket}</strong>
+                </div>
+                <span>{formatCurrency(check.totalPrize)} บาท</span>
+              </div>
+
+              <div className="checker-prize-list">
+                {check.matches.map((match) => (
+                  <div key={match.id} className="checker-match">
+                    <div>
+                      <strong>{match.label}</strong>
+                      <p>เลขที่ตรง: {match.number}</p>
+                    </div>
+                    <span>{formatCurrency(match.amount)} บาท</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : canCheckTicket ? (
+        <div className="tool-empty">
+          <strong>ยังไม่มีเลขถูกรางวัลในงวดนี้</strong>
+          <p>ระบบตรวจครบแล้ว แต่ยังไม่พบเลขที่ตรงกับรายการรางวัลของงวดที่เลือก</p>
+        </div>
+      ) : null}
+    </section>
+  )
+
+  const renderHistorySummary = () => (
+    <section id="panel-history-summary" className="tool-surface" aria-labelledby="tab-history-summary">
+      <SectionTitle
+        icon={Activity}
+        eyebrow="Historical Signals"
+        title="สรุปสถิติย้อนหลัง"
+        description={`คำนวณจากผลสลากที่โหลดไว้สูงสุด ${historicalSummary.drawLimit} งวด พร้อมแยกสัญญาณที่ช่วยอ่านภาพรวมได้เร็วขึ้น`}
+        action={
+          <label className="action-select" htmlFor="history-limit">
+            <span>ช่วงข้อมูล</span>
+            <select id="history-limit" value={historyLimit} onChange={(event) => handleHistoryLimitChange(event.target.value)}>
+              {HISTORY_LIMIT_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option} งวดล่าสุด
+                </option>
+              ))}
+            </select>
+          </label>
+        }
+      />
+
+      <div className="overview-grid">
+        <article className="summary-panel">
+          <div className="card-topline">
+            <p className="eyebrow">แหล่งข้อมูล</p>
+            <span className="status-badge">{historicalSummary.drawCount} งวด</span>
+          </div>
+          <strong className="summary-panel__headline">
+            {historicalSummary.drawCount > 0
+              ? `ใช้ช่วง ${historicalSummary.latestDrawPeriod} ถึง ${historicalSummary.oldestDrawPeriod}`
+              : 'ยังไม่มีข้อมูลผลย้อนหลังสำหรับคำนวณ'}
+          </strong>
+          <p className="summary-panel__copy">
+            ข้อมูลมาจากระบบกลางของแอป โดย backend จะดึงจาก {LOTTO_SOURCE_LABEL} และ cache ไว้ก่อนส่งให้หน้าเว็บ
+            สรุปนี้ใช้เพื่อการอ่าน pattern ย้อนหลัง ไม่ใช่การทำนายผลในอนาคต
+          </p>
+        </article>
+
+        <article className="summary-panel">
+          <div className="card-topline">
+            <p className="eyebrow">สถานะการโหลด</p>
+            <span className="status-badge">{isResultsLoading ? 'กำลังโหลด' : 'พร้อมใช้'}</span>
+          </div>
+          <strong className="summary-panel__headline">{formatSyncClock(lastResultsSync)}</strong>
+          <p className="summary-panel__copy">{resultsSourceLabel}</p>
+        </article>
+      </div>
+
+      <div className="stats-grid">
+        <article className="stat-card">
+          <span>เลขท้าย 2 ตัวที่ออกบ่อย</span>
+          <strong>{historicalSummary.frequentLast2[0]?.value ?? '--'}</strong>
+          <p>{historicalSummary.frequentLast2[0] ? `${historicalSummary.frequentLast2[0].count} ครั้ง` : 'รอข้อมูลย้อนหลัง'}</p>
+        </article>
+        <article className="stat-card">
+          <span>เลขท้าย 2 ตัวที่ห่าง</span>
+          <strong>{historicalSummary.overdueLast2[0]?.value ?? '--'}</strong>
+          <p>
+            {historicalSummary.overdueLast2[0]
+              ? historicalSummary.overdueLast2[0].drawsAgo === 0
+                ? 'งวดล่าสุด'
+                : `${historicalSummary.overdueLast2[0].drawsAgo} งวดก่อน`
+              : 'รอข้อมูลย้อนหลัง'}
+          </p>
+        </article>
+        <article className="stat-card">
+          <span>เลขเด่นสูงสุด</span>
+          <strong>{historicalSummary.standoutDigits[0]?.value ?? '--'}</strong>
+          <p>{historicalSummary.standoutDigits[0] ? `${historicalSummary.standoutDigits[0].count} จุด` : 'ยังไม่มีสัญญาณเด่น'}</p>
+        </article>
+        <article className="stat-card">
+          <span>โพยที่บันทึกไว้</span>
+          <strong>{savedSlips.length}</strong>
+          <p>พร้อมใช้เทียบกับเลข 2 ตัวย้อนหลัง</p>
+        </article>
+      </div>
+
+      <div className="history-panels">
+        <article className="history-card">
+          <span className="eyebrow">เลขท้าย 2 ตัวที่ออกบ่อย</span>
+          <div className="summary-chip-row">
+            {historicalSummary.frequentLast2.length > 0 ? (
+              historicalSummary.frequentLast2.map((item) => (
+                <strong key={`frequent-${item.value}`}>
+                  {item.value}
+                  <small>{item.count} ครั้ง</small>
+                  <small>{item.drawPeriods.join(' / ')}</small>
+                </strong>
+              ))
+            ) : (
+              <em>รอข้อมูลผลย้อนหลัง</em>
+            )}
+          </div>
+        </article>
+
+        <article className="history-card">
+          <span className="eyebrow">เลขท้าย 2 ตัวที่ห่างจากงวดล่าสุด</span>
+          <div className="summary-chip-row">
+            {historicalSummary.overdueLast2.length > 0 ? (
+              historicalSummary.overdueLast2.map((item) => (
+                <strong key={`overdue-${item.value}`}>
+                  {item.value}
+                  <small>{item.drawsAgo === 0 ? 'งวดล่าสุด' : `${item.drawsAgo} งวดก่อน`}</small>
+                  <small>{item.drawPeriod}</small>
+                </strong>
+              ))
+            ) : (
+              <em>รอข้อมูลผลย้อนหลัง</em>
+            )}
+          </div>
+        </article>
+
+        <article className="history-card">
+          <span className="eyebrow">เลขเด่นจาก {historyLimit} งวดล่าสุด</span>
+          <div className="summary-chip-row">
+            {historicalSummary.standoutDigits.length > 0 ? (
+              historicalSummary.standoutDigits.map((item) => (
+                <strong key={`digit-${item.value}`}>
+                  {item.value}
+                  <small>{item.count} จุด</small>
+                  <small>{item.drawPeriods.slice(0, 3).join(' / ')}</small>
+                </strong>
+              ))
+            ) : (
+              <em>รอข้อมูลผลย้อนหลัง</em>
+            )}
+          </div>
+        </article>
+
+        <article className="history-card">
+          <span className="eyebrow">เทียบกับโพยที่บันทึกไว้</span>
+          {savedSlips.length > 0 ? (
+            <div className="saved-stat-list">
+              <p>
+                <strong>{historicalSummary.savedHistoricalHits.length}</strong> เลขในโพยเคยตรงเลขท้าย 2 ตัวในชุดข้อมูล
+              </p>
+              <p>
+                <strong>{historicalSummary.savedFrequentHits.length}</strong> เลขในโพยชนกลุ่มที่ออกบ่อย
+              </p>
+              <p>
+                <strong>{historicalSummary.savedOverdueHits.length}</strong> เลขในโพยชนกลุ่มที่ห่างจากงวดล่าสุด
+              </p>
+            </div>
+          ) : (
+            <p className="empty-copy">บันทึกโพยก่อน แล้วระบบจะช่วยเทียบเลข 2 ตัวของคุณกับสถิติย้อนหลังให้อัตโนมัติ</p>
+          )}
+        </article>
+      </div>
+    </section>
+  )
+
+  const renderResultsFeed = () => (
+    <section id="panel-results-feed" className="tool-surface" aria-labelledby="tab-results-feed">
+      <SectionTitle
+        icon={History}
+        eyebrow="Results Feed"
+        title="ผลย้อนหลัง"
+        description="ใช้ layout แบบ card collection ที่อ่านเร็วขึ้น พร้อม control ด้านการรีเฟรชและแหล่งข้อมูลในแนวสายตาเดียวกัน"
+        action={
+          <button type="button" className="ghost-btn" onClick={() => window.location.reload()}>
+            <RefreshCcw size={15} />
+            รีโหลดข้อมูล
+          </button>
+        }
+      />
+
+      <div className="tool-layout tool-layout--split">
+        <div className="form-stack">
+          <label htmlFor="refresh-minutes">
+            รีเฟรชอัตโนมัติทุก (นาที)
+            <input
+              id="refresh-minutes"
+              type="number"
+              min={MIN_REFRESH_MINUTES}
+              max={MAX_REFRESH_MINUTES}
+              value={refreshMinutes}
+              onChange={(event) => handleRefreshMinutesChange(event.target.value)}
+            />
+          </label>
+          {isResultsLoading ? <p className="helper-copy">กำลังโหลดผลสลากจากระบบกลาง...</p> : null}
+        </div>
+
+        <aside className="tool-aside">
+          <article className="info-card">
+            <span className="eyebrow">อัปเดตล่าสุด</span>
+            <strong>{formatSyncClock(lastResultsSync)}</strong>
+            <p>{resultsSourceLabel}</p>
+          </article>
+        </aside>
+      </div>
+
+      <div className="results-grid">
+        {resultsFeed.map((item) => (
+          <article key={item.drawDate} className="result-card">
+            <div className="card-topline">
+              <p className="eyebrow">{item.drawPeriod}</p>
+              <span className="status-badge">ผลสลาก</span>
+            </div>
+            <h3>{item.firstPrize}</h3>
+            <dl>
+              <div>
+                <dt>เลขท้าย 2 ตัว</dt>
+                <dd>{item.last2}</dd>
+              </div>
+              <div>
+                <dt>หน้า 3 ตัว</dt>
+                <dd>{item.front3.join(' / ')}</dd>
+              </div>
+              <div>
+                <dt>ท้าย 3 ตัว</dt>
+                <dd>{item.back3.join(' / ')}</dd>
+              </div>
+            </dl>
+            <button type="button" className="ghost-btn" onClick={() => copyQuickValue(item.firstPrize)}>
+              <Copy size={15} />
+              คัดลอกรางวัลที่ 1
+            </button>
+          </article>
+        ))}
+
+        {!isResultsLoading && resultsFeed.length === 0 ? (
+          <div className="tool-empty">
+            <strong>ยังไม่มีข้อมูลผลสลากย้อนหลัง</strong>
+            <p>ระบบยังโหลดผลจาก API ไม่สำเร็จในขณะนี้ ลองรีโหลดอีกครั้งภายหลัง</p>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+
+  const renderActiveFeature = () => {
+    switch (activeFeature) {
+      case 'overview':
+        return renderOverview()
+      case 'quick-pick':
+        return renderQuickPick()
+      case 'dream-number':
+        return renderTextAnalysis('dream')
+      case 'story-number':
+        return renderTextAnalysis('story')
+      case 'prize-checker':
+        return renderPrizeChecker()
+      case 'history-summary':
+        return renderHistorySummary()
+      case 'results-feed':
+        return renderResultsFeed()
+      default:
+        return renderOverview()
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <a href="#main-content" className="skip-link">
+        ข้ามไปยังเนื้อหาหลัก
+      </a>
+
+      <header className="topbar">
+        <div className="topbar__inner">
+          <div className="brand-cluster">
+            <button type="button" className="brand-mark" onClick={() => setActiveFeature('overview')}>
+              <Terminal size={18} aria-hidden="true" />
+              Lotto Helper
+            </button>
+            <p className="brand-subtitle">Lottery workflow dashboard สำหรับสุ่มเลข, ตีเลข, ตรวจหวย และดูสถิติย้อนหลัง</p>
+          </div>
+
+          <div className="topbar-meta">
+            <div className="status-pill" aria-live="polite">
+              <span className={`status-dot ${isResultsLoading ? 'is-pulsing' : ''}`} />
+              <span>{isResultsLoading ? 'กำลังอัปเดตข้อมูล' : 'พร้อมใช้งาน'}</span>
+            </div>
+            <div className="status-chip">ข้อมูลเก็บในเบราว์เซอร์</div>
+          </div>
         </div>
       </header>
 
-      <main className="workspace">
-        <div className="dashboard-stack">
-          {activeFeature === 'overview' ? (
-          <section id="overview" className="panel hero-panel">
+      <main id="main-content" className="workspace">
+        <section className="hero-band">
+          <div className="hero-grid">
             <div className="hero-copy">
-              <p className="eyebrow">ตัวช่วยไอเดียเลข</p>
-              <h1>ช่วยคิดเลขได้ง่ายขึ้นในหน้าเดียว ทั้งสุ่มเลข ตีเลข และดูผลย้อนหลัง</h1>
+              <p className="eyebrow">Premium Utility</p>
+              <h1>หน้าเดียวที่จัดการ workflow หวยไทยได้ครบ ตั้งแต่หาเลขจนถึงตรวจรางวัล</h1>
               <p className="hero-text">
-                ยกหน้าใช้งานให้เป็นระบบมากขึ้น อ่านง่ายขึ้น และยังคง workflow เดิมครบ:
-                สุ่มเลขเร็ว, ตีเลขจากความฝัน, ตีเลขจากเหตุการณ์, บันทึกโพย และติดตามผลย้อนหลังจาก API
+                โครงสร้างใหม่จัดลำดับความสำคัญให้ชัดเจนขึ้น: เห็นสถานะข้อมูลก่อน, เข้าฟังก์ชันหลักได้ทันที,
+                อ่านผลลัพธ์และสถิติย้อนหลังได้ง่ายขึ้นทั้งบน desktop, tablet และ mobile
               </p>
 
               <div className="hero-cta">
                 <button type="button" className="primary-btn" onClick={() => setActiveFeature('quick-pick')}>
+                  <Sparkles size={16} />
                   เริ่มสุ่มเลข
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('dream-number')}>
-                  เล่าความฝัน
-                </button>
-                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('results-feed')}>
-                  ดูผลย้อนหลัง
-                </button>
                 <button type="button" className="secondary-btn" onClick={() => setActiveFeature('prize-checker')}>
+                  <Trophy size={16} />
                   ตรวจหวย
                 </button>
+                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('history-summary')}>
+                  <Activity size={16} />
+                  ดูสถิติย้อนหลัง
+                </button>
               </div>
 
-              <div className="hero-log">
-                <p>โหมดที่เลือก: {quickSummary}</p>
-                <p>อัปเดตผลล่าสุด: {formatSyncClock(lastResultsSync)}</p>
-                <p>สถานะข้อมูล: {resultsFeed.length > 0 ? 'พร้อมใช้งาน' : 'กำลังรอข้อมูลล่าสุด'}</p>
-              </div>
+              <ul className="hero-benefits">
+                <li>จัด workflow เป็นขั้นตอน เริ่มงานต่อได้ทันทีโดยไม่ต้องไล่หาฟีเจอร์</li>
+                <li>ใช้ visual hierarchy ใหม่เพื่อลด cognitive load ของฟอร์มและผลลัพธ์</li>
+                <li>แสดงสถานะระบบ, cache, และข้อมูลล่าสุดให้เข้าใจง่ายกว่าเดิม</li>
+              </ul>
             </div>
 
-            <div className="display-card">
-              <div className="panel-label-row">
-                <p className="eyebrow">เลขเด่นล่าสุด</p>
-                <span className="inline-status">แนะนำ</span>
-              </div>
-              <div className="display-slots">
-                {displayDigits.map((digit, index) => (
-                  <div key={`${digit}-${index}`} className="display-slot">
-                    {digit}
+            <aside className="hero-preview">
+              <article className="tool-card">
+                <div className="card-topline">
+                  <p className="eyebrow">ภาพรวมสด</p>
+                  <span className="status-badge">{activeFeatureMeta.title}</span>
+                </div>
+                <div className="preview-grid">
+                  <div>
+                    <span>โหมดสุ่มล่าสุด</span>
+                    <strong>{quickSummary}</strong>
                   </div>
-                ))}
-              </div>
-              <button type="button" className="primary-btn block-btn" onClick={handleQuickPick}>
-                สุ่มเลขทันที
-              </button>
-              <div className="display-meta">
-                <span>Latest Slip: {latestSlip.title}</span>
-                <span>Hash: {latestSlip.id.slice(0, 12)}</span>
-              </div>
-            </div>
-          </section>
+                  <div>
+                    <span>ซิงก์ล่าสุด</span>
+                    <strong>{formatSyncClock(lastResultsSync)}</strong>
+                  </div>
+                  <div>
+                    <span>งวดล่าสุด</span>
+                    <strong>{latestDraw?.drawPeriod ?? 'รอข้อมูล'}</strong>
+                  </div>
+                  <div>
+                    <span>รางวัลที่ 1</span>
+                    <strong>{latestDraw?.firstPrize ?? '--'}</strong>
+                  </div>
+                </div>
+              </article>
+            </aside>
+          </div>
+
+          {message ? (
+            <p className="flash-message" aria-live="polite">
+              {message}
+            </p>
           ) : null}
 
-          {message ? <p className="flash-message">{message}</p> : null}
-
-          {activeFeature === 'overview' ? (
-          <section className="metric-strip">
+          <section className="metric-grid" aria-label="สถานะสำคัญ">
             {topMetrics.map((item) => (
               <MetricCard key={item.label} {...item} />
             ))}
           </section>
-          ) : null}
+        </section>
 
-          {activeFeature !== 'overview' ? (
-          <div className="content-grid">
-            <div className="main-column">
-              {activeFeature === 'quick-pick' ? (
-              <section id="quick-pick" className="panel">
-                <SectionTitle
-                  icon={Sparkles}
-                  eyebrow="โหมดที่ 1"
-                  title="สุ่มเลขเร็ว"
-                  description="เลือกจำนวนหลัก ล็อกเลขบางตำแหน่ง และตัดเลขที่ไม่ต้องการออกก่อนรัน"
-                  action={<span className="inline-status">ใช้งานง่าย</span>}
-                />
-
-                <div className="form-grid">
-                  <label>
-                    จำนวนหลัก
-                    <select
-                      value={quickForm.digits}
-                      onChange={(event) =>
-                        setQuickForm((prev) => ({ ...prev, digits: Number(event.target.value) }))
-                      }
-                    >
-                      <option value={2}>2 ตัว</option>
-                      <option value={3}>3 ตัว</option>
-                      <option value={6}>6 ตัว</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    วิธีสุ่ม
-                    <select
-                      value={quickForm.randomMode}
-                      onChange={(event) =>
-                        setQuickForm((prev) => ({ ...prev, randomMode: event.target.value }))
-                      }
-                    >
-                      {Object.entries(QUICK_RANDOM_MODES).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    จำนวนชุด
-                    <input
-                      type="number"
-                      min="1"
-                      max="8"
-                      value={quickForm.sets}
-                      onChange={(event) =>
-                        setQuickForm((prev) => ({
-                          ...prev,
-                          sets: Math.min(8, Math.max(1, Number(event.target.value) || 1)),
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-
-                <button type="button" className="primary-btn block-btn quick-pick-action" onClick={handleQuickPick}>
-                  สร้างโพยสุ่มเลข
-                </button>
-
-                <div className="locked-grid">
-                  {Array.from({ length: quickForm.digits }).map((_, index) => (
-                    <label key={`lock-${index}`}>
-                      ล็อกหลัก {index + 1}
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={quickForm.lockedDigits[index]}
-                        onChange={(event) => {
-                          const next = [...quickForm.lockedDigits]
-                          next[index] = event.target.value.replace(/[^\d]/g, '').slice(0, 1)
-                          setQuickForm((prev) => ({ ...prev, lockedDigits: next }))
-                        }}
-                      />
-                    </label>
-                  ))}
-                </div>
-
-                <label className="full-width">
-                  ตัดเลขที่ไม่ต้องการออก
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="เช่น 0 หรือ 13 หรือ 668"
-                    value={quickForm.excludedDigits}
-                    onChange={(event) =>
-                      setQuickForm((prev) => ({
-                        ...prev,
-                        excludedDigits: event.target.value.replace(/[^\d]/g, ''),
-                      }))
-                    }
-                  />
-                </label>
-
-                <div className="system-readout">
-                  <span className="eyebrow">น้ำหนักจากสถิติย้อนหลัง</span>
-                  <strong>{QUICK_RANDOM_MODES[quickForm.randomMode]}</strong>
-                  <p>
-                    {quickForm.randomMode === 'balanced'
-                      ? 'สุ่มกระจายทุกเลขเท่ากัน ไม่ใช้สถิติย้อนหลัง'
-                      : `ใช้ความถี่เลขเด่นจาก ${historicalSummary.drawCount}/${historyLimit} งวดล่าสุดเป็นน้ำหนักในการสุ่ม ไม่ใช่การทำนายหรือการการันตีผล`}
-                  </p>
-                </div>
-              </section>
-              ) : null}
-
-              {activeFeature === 'dream-number' ? (
-              <section id="dream-number" className="panel">
-                <SectionTitle
-                  icon={BookOpenText}
-                  eyebrow="โหมดที่ 2"
-                  title="ตีเลขจากความฝัน"
-                  description="เล่าความฝันสั้น ๆ แล้วให้ระบบดึง keyword และเลขสำคัญมาสร้างโพย"
-                  action={<span className="inline-status">พิมพ์เล่าได้เลย</span>}
-                />
-
-                <textarea
-                  value={dreamText}
-                  onChange={(event) => setDreamText(event.target.value)}
-                  placeholder="เช่น ฝันว่างูเข้าบ้านตอนตี 2 หรือฝันว่าฟันหลุด"
-                  rows={5}
-                />
-
-                <div className="hint-row">
-                  {dreamRules.slice(0, 5).map((rule) => (
-                    <button
-                      key={rule.keyword}
-                      type="button"
-                      className="tag-btn"
-                      onClick={() => setDreamText((prev) => `${prev} ${rule.keyword}`.trim())}
-                    >
-                      {rule.keyword}
-                    </button>
-                  ))}
-                </div>
-
-                <button type="button" className="primary-btn block-btn" onClick={handleDreamAnalysis}>
-                  วิเคราะห์ความฝัน
-                </button>
-              </section>
-              ) : null}
-
-              {activeFeature === 'story-number' ? (
-              <section id="story-number" className="panel">
-                <SectionTitle
-                  icon={SearchCheck}
-                  eyebrow="โหมดที่ 3"
-                  title="ตีเลขจากสิ่งที่เจอ"
-                  description="พิมพ์เหตุการณ์ที่เห็น เช่น เวลา จำนวน สี รถ หรือใบเสร็จ เพื่อจัดชุดเลขเด่น"
-                  action={<span className="inline-status">ใช้งานประจำวัน</span>}
-                />
-
-                <textarea
-                  value={storyText}
-                  onChange={(event) => setStoryText(event.target.value)}
-                  placeholder="เช่น เห็นแมวดำ 2 ตัวตอน 6 โมงเย็น หรือเจอใบเสร็จ 287 บาท"
-                  rows={5}
-                />
-
-                <div className="hint-row">
-                  {symbolRules.slice(0, 6).map((rule) => (
-                    <button
-                      key={rule.keyword}
-                      type="button"
-                      className="tag-btn"
-                      onClick={() => setStoryText((prev) => `${prev} ${rule.keyword}`.trim())}
-                    >
-                      {rule.keyword}
-                    </button>
-                  ))}
-                </div>
-
-                <button type="button" className="primary-btn block-btn" onClick={handleStoryAnalysis}>
-                  วิเคราะห์สิ่งที่เจอ
-                </button>
-              </section>
-              ) : null}
-
-              {activeFeature === 'prize-checker' ? (
-              <section id="prize-checker" className="panel">
-                <SectionTitle
-                  icon={Trophy}
-                  eyebrow="โหมดที่ 4"
-                  title="ตรวจหวย"
-                  description="กรอกหรือวางเลขสลาก 6 หลักได้หลายรายการ ระบบจะตรวจรางวัลทั้งหมดในงวดที่เลือกและรวมยอดเงินรางวัลให้อัตโนมัติ"
-                  action={
-                    <select
-                      className="checker-draw-select"
-                      value={selectedDraw?.drawDate ?? ''}
-                      onChange={(event) => setSelectedDrawDate(event.target.value)}
-                      disabled={resultsFeed.length === 0}
-                      aria-label="เลือกงวดที่ต้องการตรวจ"
-                    >
-                      {resultsFeed.length > 0 ? (
-                        resultsFeed.map((item) => (
-                          <option key={item.drawDate} value={item.drawDate}>
-                            {item.drawPeriod}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">รอโหลดผลสลาก</option>
-                      )}
-                    </select>
-                  }
-                />
-
-                <label>
-                  เลขสลากกินแบ่ง
-                  <textarea
-                    className="checker-input"
-                    value={ticketInput}
-                    inputMode="numeric"
-                    placeholder="เช่น 123456, 444444 หรือวางหลายบรรทัด&#10;123456&#10;789012&#10;444444"
-                    rows={4}
-                    onChange={(event) => setTicketInput(event.target.value)}
-                  />
-                </label>
-
-                <div className={`checker-summary ${canCheckTicket ? 'is-ready' : ''}`}>
-                  <div>
-                    <span className="eyebrow">ผลการตรวจ</span>
-                    <strong>
-                      {canCheckTicket
-                        ? checkerSummary.totalMatches > 0
-                          ? `พบ ${checkerSummary.totalMatches} รางวัล จาก ${checkerSummary.winningTickets} ใบ`
-                          : 'ยังไม่มีเลขถูกรางวัล'
-                        : 'วางเลข 6 หลักได้หลายรายการ'}
-                    </strong>
-                    <p>
-                      {selectedDraw
-                        ? `ตรวจ ${ticketNumbers.length} ใบ จาก ${checkerSummary.checkedPrizeCount} หมายเลขรางวัลของงวด ${selectedDraw.drawPeriod}`
-                        : 'ระบบจะตรวจได้หลังจากโหลดผลสลากสำเร็จ'}
-                    </p>
-                  </div>
-                  <div className="checker-total">
-                    <span>เงินรางวัลรวม</span>
-                    <strong>{formatCurrency(checkerSummary.totalPrize)} บาท</strong>
-                  </div>
-                </div>
-
-                {canCheckTicket && winningTicketChecks.length > 0 ? (
-                  <div className="checker-matches">
-                    {winningTicketChecks.map((check) => (
-                      <article
-                        key={check.normalizedTicket}
-                        className={`checker-ticket-result ${check.matches.length > 0 ? 'is-winning' : ''}`}
-                      >
-                        <div className="checker-ticket-head">
-                          <div>
-                            <span className="eyebrow">เลขสลาก</span>
-                            <strong>{check.normalizedTicket}</strong>
-                          </div>
-                          <span>{formatCurrency(check.totalPrize)} บาท</span>
-                        </div>
-
-                        <div className="checker-prize-list">
-                          {check.matches.map((match) => (
-                            <div key={match.id} className="checker-match">
-                              <div>
-                                <strong>{match.label}</strong>
-                                <p>เลขที่ตรง: {match.number}</p>
-                              </div>
-                              <span>{formatCurrency(match.amount)} บาท</span>
-                            </div>
-                          ))}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-              ) : null}
-
-              {activeFeature === 'history-summary' ? (
-              <section id="history-summary" className="panel">
-                <SectionTitle
-                  icon={Activity}
-                  eyebrow="สถิติจากผลย้อนหลัง"
-                  title="สรุปสถิติย้อนหลัง"
-                  description={`คำนวณจากผลสลากล่าสุดสูงสุด ${historicalSummary.drawLimit} งวดที่โหลดจาก API และเก็บ cache ไว้ในเครื่อง`}
-                  action={<span className="inline-status">{historicalSummary.drawCount} งวด</span>}
-                />
-
-                <div className="form-grid compact-grid history-control-grid">
-                  <label>
-                    ช่วงสถิติย้อนหลัง
-                    <select value={historyLimit} onChange={(event) => handleHistoryLimitChange(event.target.value)}>
-                      {HISTORY_LIMIT_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option} งวดล่าสุด
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="system-readout">
-                    <span className="eyebrow">การโหลดข้อมูล</span>
-                    <strong>
-                      {isResultsLoading
-                        ? `กำลังโหลด ${historyLimit} งวด`
-                        : `แสดง ${historicalSummary.drawCount}/${historyLimit} งวด`}
-                    </strong>
-                    <p>ระบบจะดึงหลายหน้า API อัตโนมัติ เช่น /list/1, /list/2 แล้วนำ id ไปโหลดรายละเอียดแต่ละงวด</p>
-                  </div>
-                </div>
-
-                <div className="history-summary">
-                  <div className="history-summary__notice">
-                    <div>
-                      <span className="eyebrow">แหล่งข้อมูล</span>
-                      <strong>
-                        {historicalSummary.drawCount > 0
-                          ? `ใช้ช่วง ${historicalSummary.latestDrawPeriod} ถึง ${historicalSummary.oldestDrawPeriod}`
-                          : 'ยังไม่มีข้อมูลผลย้อนหลังสำหรับคำนวณ'}
-                      </strong>
-                    </div>
-                    <p>
-                      ข้อมูลมาจากระบบกลางของแอป โดย backend จะดึงจาก {LOTTO_SOURCE_LABEL} และ cache ไว้ก่อนส่งให้หน้าเว็บ
-                      หาก API ภายนอกใช้งานไม่ได้จะใช้ข้อมูลสำรองแทน
-                      สรุปนี้เป็นข้อมูลในอดีตเท่านั้น ไม่ใช่การทำนายหรือการการันตีผลงวดถัดไป
-                    </p>
-                  </div>
-
-                  <div className="history-source-row">
-                    <div className="system-readout">
-                      <span className="eyebrow">ซิงก์ล่าสุด</span>
-                      <strong>{formatSyncClock(lastResultsSync)}</strong>
-                      <p>{resultsSourceLabel}</p>
-                    </div>
-                    <div className="draw-source-list">
-                      <span className="eyebrow">งวดที่ใช้คำนวณ</span>
-                      <div>
-                        {historicalSummary.drawRows.length > 0 ? (
-                          historicalSummary.drawRows.map((draw) => (
-                            <p key={draw.id}>
-                              <strong>{draw.period}</strong>
-                              <span>ท้าย 2 ตัว {draw.last2} · รางวัลที่ 1 {draw.firstPrize}</span>
-                            </p>
-                          ))
-                        ) : (
-                          <p className="muted">รอข้อมูลผลย้อนหลังจาก API หรือ cache ในเครื่อง</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="history-summary-grid">
-                    <article className="history-summary-card">
-                      <span className="eyebrow">เลขท้าย 2 ตัวที่ออกบ่อย</span>
-                      <div className="summary-chip-row">
-                        {historicalSummary.frequentLast2.length > 0 ? (
-                          historicalSummary.frequentLast2.map((item) => (
-                            <strong key={`frequent-${item.value}`}>
-                              {item.value}
-                              <small>{item.count} ครั้ง</small>
-                              <small>{item.drawPeriods.join(' / ')}</small>
-                            </strong>
-                          ))
-                        ) : (
-                          <em>รอข้อมูลผลย้อนหลัง</em>
-                        )}
-                      </div>
-                    </article>
-
-                    <article className="history-summary-card">
-                      <span className="eyebrow">เลขท้าย 2 ตัวที่ห่างจากงวดล่าสุด</span>
-                      <div className="summary-chip-row">
-                        {historicalSummary.overdueLast2.length > 0 ? (
-                          historicalSummary.overdueLast2.map((item) => (
-                            <strong key={`overdue-${item.value}`}>
-                              {item.value}
-                              <small>{item.drawsAgo === 0 ? 'งวดล่าสุด' : `${item.drawsAgo} งวดก่อน`}</small>
-                              <small>{item.drawPeriod}</small>
-                            </strong>
-                          ))
-                        ) : (
-                          <em>รอข้อมูลผลย้อนหลัง</em>
-                        )}
-                      </div>
-                    </article>
-
-                    <article className="history-summary-card">
-                      <span className="eyebrow">เลขเด่นจาก {historyLimit} งวดล่าสุด</span>
-                      <div className="summary-chip-row">
-                        {historicalSummary.standoutDigits.length > 0 ? (
-                          historicalSummary.standoutDigits.map((item) => (
-                            <strong key={`digit-${item.value}`}>
-                              {item.value}
-                              <small>{item.count} จุด</small>
-                              <small>{item.drawPeriods.slice(0, 3).join(' / ')}</small>
-                            </strong>
-                          ))
-                        ) : (
-                          <em>รอข้อมูลผลย้อนหลัง</em>
-                        )}
-                      </div>
-                    </article>
-
-                    <article className="history-summary-card">
-                      <span className="eyebrow">เทียบโพยที่บันทึกไว้</span>
-                      {savedSlips.length > 0 ? (
-                        <div className="saved-stat-list">
-                          <p>
-                            <strong>{historicalSummary.savedHistoricalHits.length}</strong>
-                            {' '}เลขในโพยเคยตรงเลขท้าย 2 ตัวในชุดข้อมูล
-                          </p>
-                          <p>
-                            <strong>{historicalSummary.savedFrequentHits.length}</strong>
-                            {' '}เลขในโพยชนกลุ่มที่ออกบ่อย
-                          </p>
-                          <p>
-                            <strong>{historicalSummary.savedOverdueHits.length}</strong>
-                            {' '}เลขในโพยชนกลุ่มที่ห่างจากงวดล่าสุด
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="muted">บันทึกโพยก่อน แล้วระบบจะเทียบเลข 2 ตัวของคุณกับสถิติย้อนหลังให้อัตโนมัติ</p>
-                      )}
-                    </article>
-                  </div>
-                </div>
-              </section>
-              ) : null}
-
-              {activeFeature === 'results-feed' ? (
-              <section id="results-feed" className="panel">
-                <SectionTitle
-                  icon={History}
-                  eyebrow="ข้อมูลภายนอก"
-                  title="ผลย้อนหลัง"
-                  description="ดึงหลายงวดย้อนหลังจาก API พร้อม localStorage cache เมื่อ API ไม่พร้อม"
-                  action={
-                    <button
-                      type="button"
-                      className="ghost-btn"
-                      onClick={() => window.location.reload()}
-                      title="รีโหลดข้อมูลทันที"
-                    >
-                      <RefreshCcw size={15} />
-                      รีโหลดข้อมูล
-                    </button>
-                  }
-                />
-
-                <div className="form-grid compact-grid">
-                  <label>
-                    รีเฟรชอัตโนมัติทุก (นาที)
-                    <input
-                      type="number"
-                      min={MIN_REFRESH_MINUTES}
-                      max={MAX_REFRESH_MINUTES}
-                      value={refreshMinutes}
-                      onChange={(event) => handleRefreshMinutesChange(event.target.value)}
-                    />
-                  </label>
-                  <div className="system-readout">
-                    <span className="eyebrow">อัปเดตล่าสุด</span>
-                    <strong>{formatSyncClock(lastResultsSync)}</strong>
-                    <p>{resultsSourceLabel}</p>
-                  </div>
-                </div>
-
-                {isResultsLoading ? <p className="muted">กำลังโหลดผลสลากจาก API...</p> : null}
-
-                <div className="results-grid">
-                  {resultsFeed.map((item) => (
-                    <article key={item.drawDate} className="result-card">
-                      <div className="panel-label-row">
-                        <p className="eyebrow">{item.drawPeriod}</p>
-                        <span className="inline-status">ผลสลาก</span>
-                      </div>
-                      <h3>{item.firstPrize}</h3>
-                      <dl>
-                        <div>
-                          <dt>เลขท้าย 2 ตัว</dt>
-                          <dd>{item.last2}</dd>
-                        </div>
-                        <div>
-                          <dt>หน้า 3 ตัว</dt>
-                          <dd>{item.front3.join(' / ')}</dd>
-                        </div>
-                        <div>
-                          <dt>ท้าย 3 ตัว</dt>
-                          <dd>{item.back3.join(' / ')}</dd>
-                        </div>
-                      </dl>
-                      <button type="button" className="ghost-btn" onClick={() => copyQuickValue(item.firstPrize)}>
-                        <Copy size={15} />
-                        คัดลอกรางวัลที่ 1
-                      </button>
-                    </article>
-                  ))}
-
-                  {!isResultsLoading && resultsFeed.length === 0 ? (
-                    <p className="muted">ยังไม่มีข้อมูลผลสลากจาก API กรุณาลองใหม่อีกครั้ง</p>
-                  ) : null}
-                </div>
-              </section>
-              ) : null}
+        <section className="feature-band">
+          <div className="feature-band__head">
+            <div>
+              <p className="eyebrow">{activeFeatureMeta.eyebrow}</p>
+              <h2>{activeFeatureMeta.title}</h2>
+              <p>{activeFeatureMeta.description}</p>
             </div>
+            <div className="feature-band__meta">
+              <span className="status-chip">{resultsFeed.length > 0 ? `${resultsFeed.length} งวดพร้อมใช้` : 'กำลังรอผลล่าสุด'}</span>
+            </div>
+          </div>
 
-            <aside className="side-column">
+          <FeatureNav items={NAV_ITEMS} activeFeature={activeFeature} onChange={setActiveFeature} />
+
+          <div className="workspace-grid">
+            <div className="workspace-main">{renderActiveFeature()}</div>
+
+            <aside className="workspace-side">
               <SlipCard
                 slip={latestSlip}
                 onSave={handleSaveSlip}
@@ -1469,13 +1719,13 @@ function App() {
                 isSaved={savedIds.has(latestSlip.id)}
               />
 
-              <section className="panel">
+              <section className="tool-card">
                 <SectionTitle
                   icon={ClipboardList}
-                  eyebrow="เก็บไว้ดูทีหลัง"
+                  eyebrow="Saved Slips"
                   title="โพยที่บันทึกไว้"
-                  description="เก็บไว้ในเครื่องนี้เท่านั้น ไม่มีระบบสมาชิกในเวอร์ชันปัจจุบัน"
-                  action={<span className="inline-status">{savedSlips.length} รายการ</span>}
+                  description="กดแชร์หรือย้อนกลับมาดูเลขเด่นได้จาก sidebar นี้ทันที"
+                  action={<span className="status-badge">{savedSlips.length} รายการ</span>}
                 />
 
                 <div className="saved-list">
@@ -1490,60 +1740,62 @@ function App() {
                       </button>
                     ))
                   ) : (
-                    <p className="muted">ยังไม่มีโพยที่บันทึกไว้ กด Save จากผลลัพธ์ล่าสุดได้ทันที</p>
+                    <div className="tool-empty compact">
+                      <strong>ยังไม่มีโพยที่บันทึกไว้</strong>
+                      <p>กดบันทึกจากผลลัพธ์ล่าสุด แล้วรายการจะมาแสดงที่นี่</p>
+                    </div>
                   )}
                 </div>
               </section>
 
-              <section className="panel side-monitor">
+              <section className="tool-card side-monitor">
                 <SectionTitle
                   icon={Layers3}
-                  eyebrow="สรุปการใช้งาน"
+                  eyebrow="System Snapshot"
                   title="ภาพรวมแบบเร็ว"
-                  description="ข้อมูลสำคัญที่ควรรู้ก่อนใช้งานและสถานะของข้อมูลล่าสุด"
-                  action={<span className="inline-status">อัปเดตแล้ว</span>}
+                  description="สรุปข้อมูลที่ใช้ประกอบการตัดสินใจก่อนเปลี่ยน workflow"
+                  action={<span className="status-badge">อัปเดตแล้ว</span>}
                 />
 
                 <div className="monitor-list">
                   <div>
-                    <span>Mode</span>
-                    <strong>{quickSummary}</strong>
+                    <span>โหมดปัจจุบัน</span>
+                    <strong>{activeFeatureMeta.title}</strong>
                   </div>
                   <div>
                     <span>โพยล่าสุด</span>
                     <strong>{latestSlip.title}</strong>
                   </div>
                   <div>
-                    <span>จำนวนงวด</span>
+                    <span>สถิติย้อนหลัง</span>
                     <strong>{historicalSummary.drawCount}/{historyLimit} งวด</strong>
                   </div>
                   <div>
-                    <span>การจัดเก็บ</span>
-                    <strong>ในเบราว์เซอร์</strong>
+                    <span>แหล่งข้อมูล</span>
+                    <strong>{LOTTO_SOURCE_LABEL}</strong>
                   </div>
                 </div>
               </section>
             </aside>
           </div>
-          ) : null}
+        </section>
 
-          <section className="panel footer-panel">
-            <div className="footer-panel__copy">
-              <p>พร้อมช่วยคิดเลขและบันทึกโพยในเครื่องของคุณ</p>
-              <p>ผลย้อนหลังจะดึงจาก API และมี cache สำรองเมื่อเชื่อมต่อไม่ได้</p>
-            </div>
-            <div className="footer-panel__meta">
-              <span>
-                <Activity size={14} />
-                รีเฟรชทุก {refreshMinutes} นาที
-              </span>
-              <span>
-                <Settings2 size={14} />
-                เก็บข้อมูลในเบราว์เซอร์
-              </span>
-            </div>
-          </section>
-        </div>
+        <section className="footer-band">
+          <div className="footer-band__copy">
+            <p>พร้อมช่วยคิดเลข, ตรวจหวย, และติดตามผลย้อนหลังใน interface เดียวที่อ่านง่ายกว่าเดิม</p>
+            <p>ระบบจะดึงข้อมูลผลสลากจาก backend ของแอปและมี cache สำรองเมื่อ API ภายนอกยังไม่พร้อม</p>
+          </div>
+          <div className="footer-band__meta">
+            <span>
+              <Activity size={14} />
+              รีเฟรชทุก {refreshMinutes} นาที
+            </span>
+            <span>
+              <Settings2 size={14} />
+              ข้อมูลอยู่ในเบราว์เซอร์
+            </span>
+          </div>
+        </section>
       </main>
     </div>
   )
