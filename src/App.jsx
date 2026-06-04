@@ -5,7 +5,6 @@ import {
   ClipboardList,
   Copy,
   History,
-  Layers3,
   Radar,
   RefreshCcw,
   Save,
@@ -497,16 +496,6 @@ function SlipCard({ slip, onSave, onShare, isSaved }) {
   )
 }
 
-function MetricCard({ label, value, meta }) {
-  return (
-    <article className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <p>{meta}</p>
-    </article>
-  )
-}
-
 function FeatureNav({ items, activeFeature, onChange }) {
   return (
     <div className="feature-nav" role="tablist" aria-label="ฟังก์ชันหลัก">
@@ -738,31 +727,6 @@ function App() {
   const quickPickWeights = useMemo(
     () => buildQuickPickWeights(historicalSummary, quickForm.randomMode),
     [historicalSummary, quickForm.randomMode],
-  )
-  const topMetrics = useMemo(
-    () => [
-      {
-        label: 'โพยล่าสุด',
-        value: String(recentSlips.length).padStart(2, '0'),
-        meta: 'ชุดที่สร้างไว้ในเครื่อง',
-      },
-      {
-        label: 'รายการบันทึก',
-        value: String(savedSlips.length).padStart(2, '0'),
-        meta: 'เก็บไว้ใช้งานภายหลัง',
-      },
-      {
-        label: 'รีเฟรชข้อมูล',
-        value: `${refreshMinutes}m`,
-        meta: 'ดึงผลสลากอัตโนมัติ',
-      },
-      {
-        label: 'สถานะระบบ',
-        value: resultsFeed.length > 0 ? 'พร้อมใช้' : 'รอโหลด',
-        meta: resultsFeed.length > 0 ? 'มีข้อมูลงวดล่าสุดแล้ว' : 'กำลังเชื่อมต่อข้อมูลภายนอก',
-      },
-    ],
-    [recentSlips.length, refreshMinutes, resultsFeed.length, savedSlips.length],
   )
   const latestDraw = resultsFeed[0] ?? null
   const activeFeatureMeta = useMemo(
@@ -1624,59 +1588,51 @@ function App() {
         <section className="hero-band">
           <div className="hero-grid">
             <div className="hero-copy">
-              <p className="eyebrow">Premium Utility</p>
-              <h1>หน้าเดียวที่จัดการ workflow หวยไทยได้ครบ ตั้งแต่หาเลขจนถึงตรวจรางวัล</h1>
-              <p className="hero-text">
-                โครงสร้างใหม่จัดลำดับความสำคัญให้ชัดเจนขึ้น: เห็นสถานะข้อมูลก่อน, เข้าฟังก์ชันหลักได้ทันที,
-                อ่านผลลัพธ์และสถิติย้อนหลังได้ง่ายขึ้นทั้งบน desktop, tablet และ mobile
-              </p>
+              <p className="eyebrow">Lotto Helper</p>
+              <h1>ตรวจหวยและดูผลล่าสุด</h1>
+              <p className="hero-text">ดูงวดล่าสุดก่อน แล้วเลือกสุ่มเลขหรือตรวจรางวัลต่อได้ทันที</p>
 
               <div className="hero-cta">
-                <button type="button" className="primary-btn" onClick={() => setActiveFeature('quick-pick')}>
-                  <Sparkles size={16} />
-                  เริ่มสุ่มเลข
-                </button>
-                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('prize-checker')}>
+                <button type="button" className="primary-btn" onClick={() => setActiveFeature('prize-checker')}>
                   <Trophy size={16} />
                   ตรวจหวย
                 </button>
-                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('history-summary')}>
-                  <Activity size={16} />
-                  ดูสถิติย้อนหลัง
+                <button type="button" className="secondary-btn" onClick={() => setActiveFeature('quick-pick')}>
+                  <Sparkles size={16} />
+                  สุ่มเลข
                 </button>
               </div>
 
-              <ul className="hero-benefits">
-                <li>จัด workflow เป็นขั้นตอน เริ่มงานต่อได้ทันทีโดยไม่ต้องไล่หาฟีเจอร์</li>
-                <li>ใช้ visual hierarchy ใหม่เพื่อลด cognitive load ของฟอร์มและผลลัพธ์</li>
-                <li>แสดงสถานะระบบ, cache, และข้อมูลล่าสุดให้เข้าใจง่ายกว่าเดิม</li>
-              </ul>
+              <div className="hero-meta" aria-label="สถานะระบบแบบย่อ">
+                <span>{isResultsLoading ? 'กำลังอัปเดตผลสลาก' : 'ข้อมูลพร้อมใช้'}</span>
+                <span>ซิงก์ {formatSyncClock(lastResultsSync)}</span>
+                <span>รีเฟรชทุก {refreshMinutes} นาที</span>
+              </div>
             </div>
 
             <aside className="hero-preview">
-              <article className="tool-card">
+              <article className="tool-card latest-draw-card">
                 <div className="card-topline">
                   <p className="eyebrow">ภาพรวมสด</p>
-                  <span className="status-badge">{activeFeatureMeta.title}</span>
+                  <span className="status-badge">{latestDraw?.drawPeriod ?? 'รอข้อมูล'}</span>
                 </div>
-                <div className="preview-grid">
-                  <div>
-                    <span>โหมดสุ่มล่าสุด</span>
-                    <strong>{quickSummary}</strong>
-                  </div>
-                  <div>
-                    <span>ซิงก์ล่าสุด</span>
-                    <strong>{formatSyncClock(lastResultsSync)}</strong>
-                  </div>
-                  <div>
-                    <span>งวดล่าสุด</span>
-                    <strong>{latestDraw?.drawPeriod ?? 'รอข้อมูล'}</strong>
-                  </div>
-                  <div>
+
+                {latestDraw ? (
+                  <div className="latest-draw">
                     <span>รางวัลที่ 1</span>
-                    <strong>{latestDraw?.firstPrize ?? '--'}</strong>
+                    <strong>{latestDraw.firstPrize}</strong>
+                    <div className="latest-draw__numbers">
+                      <b>ท้าย 2 ตัว {latestDraw.last2}</b>
+                      <b>หน้า 3 ตัว {latestDraw.front3.join(' / ')}</b>
+                      <b>ท้าย 3 ตัว {latestDraw.back3.join(' / ')}</b>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="tool-empty compact">
+                    <strong>ยังไม่มีข้อมูลงวดล่าสุด</strong>
+                    <p>ระบบกำลังรอผลจากแหล่งข้อมูลภายนอก</p>
+                  </div>
+                )}
               </article>
             </aside>
           </div>
@@ -1686,12 +1642,6 @@ function App() {
               {message}
             </p>
           ) : null}
-
-          <section className="metric-grid" aria-label="สถานะสำคัญ">
-            {topMetrics.map((item) => (
-              <MetricCard key={item.label} {...item} />
-            ))}
-          </section>
         </section>
 
         <section className="feature-band">
@@ -1748,34 +1698,6 @@ function App() {
                 </div>
               </section>
 
-              <section className="tool-card side-monitor">
-                <SectionTitle
-                  icon={Layers3}
-                  eyebrow="System Snapshot"
-                  title="ภาพรวมแบบเร็ว"
-                  description="สรุปข้อมูลที่ใช้ประกอบการตัดสินใจก่อนเปลี่ยน workflow"
-                  action={<span className="status-badge">อัปเดตแล้ว</span>}
-                />
-
-                <div className="monitor-list">
-                  <div>
-                    <span>โหมดปัจจุบัน</span>
-                    <strong>{activeFeatureMeta.title}</strong>
-                  </div>
-                  <div>
-                    <span>โพยล่าสุด</span>
-                    <strong>{latestSlip.title}</strong>
-                  </div>
-                  <div>
-                    <span>สถิติย้อนหลัง</span>
-                    <strong>{historicalSummary.drawCount}/{historyLimit} งวด</strong>
-                  </div>
-                  <div>
-                    <span>แหล่งข้อมูล</span>
-                    <strong>{LOTTO_SOURCE_LABEL}</strong>
-                  </div>
-                </div>
-              </section>
             </aside>
           </div>
         </section>
