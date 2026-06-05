@@ -2,6 +2,8 @@ import { createElement, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   BookOpenText,
+  Check,
+  ChevronDown,
   ClipboardList,
   Copy,
   History,
@@ -518,18 +520,88 @@ function FeatureNav({ items, activeFeature, onChange }) {
   )
 }
 
-function ShortcutCard({ icon, title, description, meta, onClick, active }) {
+function CustomSelect({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+  className = '',
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const rootRef = useRef(null)
+  const selectedOption = options.find((option) => String(option.value) === String(value)) ?? options[0]
+  const labelId = `${id}-label`
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined
+    }
+
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [isOpen])
+
+  const handleSelect = (nextValue) => {
+    onChange(nextValue)
+    setIsOpen(false)
+  }
+
   return (
-    <button type="button" className={`shortcut-card ${active ? 'is-active' : ''}`} onClick={onClick}>
-      <span className="shortcut-card__icon" aria-hidden="true">
-        {createElement(icon, { size: 18 })}
+    <div className={`custom-select-field ${className}`.trim()} ref={rootRef}>
+      <span id={labelId} className="custom-select-field__label">
+        {label}
       </span>
-      <span className="shortcut-card__copy">
-        <strong>{title}</strong>
-        <span>{description}</span>
-      </span>
-      <span className="shortcut-card__meta">{meta}</span>
-    </button>
+      <div className={`custom-select ${isOpen ? 'is-open' : ''} ${disabled ? 'is-disabled' : ''}`.trim()}>
+        <button
+          id={id}
+          type="button"
+          className="custom-select__button"
+          aria-labelledby={`${labelId} ${id}`}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          disabled={disabled}
+          onClick={() => setIsOpen((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setIsOpen(false)
+            }
+          }}
+        >
+          <span className="custom-select__value">{selectedOption?.label ?? 'เลือกข้อมูล'}</span>
+          <ChevronDown size={17} aria-hidden="true" />
+        </button>
+
+        {isOpen ? (
+          <div className="custom-select__menu" role="listbox" aria-labelledby={labelId}>
+            {options.map((option) => {
+              const isSelected = String(option.value) === String(value)
+
+              return (
+                <button
+                  key={`${id}-${option.value}`}
+                  type="button"
+                  className={`custom-select__option ${isSelected ? 'is-selected' : ''}`.trim()}
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => handleSelect(option.value)}
+                >
+                  <span>{option.label}</span>
+                  {isSelected ? <Check size={16} aria-hidden="true" /> : null}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -770,40 +842,6 @@ function App() {
       })[activeFeature],
     [activeFeature],
   )
-  const shortcutCards = useMemo(
-    () => [
-      {
-        id: 'quick-pick',
-        title: 'สุ่มเลขทันที',
-        description: 'สร้างโพยใหม่จาก mode ปัจจุบัน',
-        meta: quickSummary,
-        icon: Sparkles,
-      },
-      {
-        id: 'prize-checker',
-        title: 'ตรวจรางวัล',
-        description: 'วางเลขหลายใบและคัดเฉพาะใบที่ถูก',
-        meta: selectedDraw?.drawPeriod ?? 'รอข้อมูลงวด',
-        icon: Trophy,
-      },
-      {
-        id: 'history-summary',
-        title: 'ดูสถิติย้อนหลัง',
-        description: 'ใช้ความถี่เลขช่วยอ่านภาพรวมย้อนหลัง',
-        meta: `${historicalSummary.drawCount}/${historyLimit} งวด`,
-        icon: Activity,
-      },
-      {
-        id: 'results-feed',
-        title: 'เช็กผลล่าสุด',
-        description: 'ดูรางวัลที่ 1 และเลขวิ่งในงวดล่าสุด',
-        meta: latestDraw?.drawPeriod ?? 'รอผลล่าสุด',
-        icon: History,
-      },
-    ],
-    [historyLimit, historicalSummary.drawCount, latestDraw?.drawPeriod, quickSummary, selectedDraw?.drawPeriod],
-  )
-
   const setFlashMessage = (text) => {
     setMessage(text)
     window.clearTimeout(timerRef.current)
@@ -923,32 +961,22 @@ function App() {
     <section id="panel-overview" className="tool-surface" aria-labelledby="tab-overview">
       <SectionTitle
         icon={Terminal}
-        eyebrow="Command Center"
-        title="เริ่มจากงานที่ต้องทำตอนนี้"
-        description="โครงหน้าใหม่ลดความรกของ workflow เดิมด้วยการดันจุดเริ่มต้น, สถานะข้อมูล, และทางลัดแต่ละโหมดขึ้นมาให้อยู่ในแนวสายตาแรก"
-        action={<span className="status-badge">พร้อมใช้งาน</span>}
+        eyebrow="Overview"
+        title="ภาพรวมการใช้งาน"
+        description="ดูผลล่าสุดก่อน แล้วเลือกงานที่ต้องทำต่อ"
+        action={<span className="status-badge">{latestDraw?.drawPeriod ?? 'รอข้อมูล'}</span>}
       />
 
-      <div className="overview-shortcuts">
-        {shortcutCards.map((item) => (
-          <ShortcutCard
-            key={item.id}
-            {...item}
-            active={activeFeature === item.id}
-            onClick={() => setActiveFeature(item.id)}
-          />
-        ))}
-      </div>
-
-      <div className="overview-grid">
-        <article className="summary-panel">
+      <div className="overview-focus">
+        <article className="summary-panel overview-latest">
           <div className="card-topline">
             <p className="eyebrow">งวดล่าสุด</p>
-            <span className="status-badge">{latestDraw?.drawPeriod ?? 'รอข้อมูล'}</span>
+            <span className="status-badge">{isResultsLoading ? 'กำลังโหลด' : 'พร้อมใช้'}</span>
           </div>
           {latestDraw ? (
             <div className="draw-hero">
               <div>
+                <small>{latestDraw.drawPeriod}</small>
                 <span>รางวัลที่ 1</span>
                 <strong>{latestDraw.firstPrize}</strong>
               </div>
@@ -963,22 +991,33 @@ function App() {
           )}
         </article>
 
-        <article className="summary-panel">
+        <article className="summary-panel overview-actions">
           <div className="card-topline">
-            <p className="eyebrow">สถิติย้อนหลัง</p>
-            <span className="status-badge">{historicalSummary.drawCount} งวด</span>
+            <p className="eyebrow">ทำต่อ</p>
+            <span className="status-badge">{resultsFeed.length} งวด</span>
           </div>
-          <div className="signal-grid">
-            <div>
-              <span>เลขท้าย 2 ตัวเด่น</span>
-              <strong>{historicalSummary.frequentLast2[0]?.value ?? '--'}</strong>
-              <p>{historicalSummary.frequentLast2[0] ? `${historicalSummary.frequentLast2[0].count} ครั้ง` : 'รอข้อมูลย้อนหลัง'}</p>
-            </div>
-            <div>
-              <span>เลขเด่นสุด</span>
-              <strong>{historicalSummary.standoutDigits[0]?.value ?? '--'}</strong>
-              <p>{historicalSummary.standoutDigits[0] ? `${historicalSummary.standoutDigits[0].count} จุด` : 'ยังไม่มีสัญญาณเด่น'}</p>
-            </div>
+          <div className="overview-action-list">
+            <button type="button" className="overview-action is-primary" onClick={() => setActiveFeature('prize-checker')}>
+              <Trophy size={17} />
+              <span>
+                <strong>ตรวจหวย</strong>
+                <small>วางเลขหลายใบแล้วดูเฉพาะใบที่ถูกรางวัล</small>
+              </span>
+            </button>
+            <button type="button" className="overview-action" onClick={() => setActiveFeature('quick-pick')}>
+              <Sparkles size={17} />
+              <span>
+                <strong>สุ่มเลข</strong>
+                <small>{quickSummary}</small>
+              </span>
+            </button>
+            <button type="button" className="overview-action" onClick={() => setActiveFeature('results-feed')}>
+              <History size={17} />
+              <span>
+                <strong>ผลย้อนหลัง</strong>
+                <small>ดูผลสลากที่โหลดไว้ {resultsFeed.length} งวด</small>
+              </span>
+            </button>
           </div>
         </article>
       </div>
@@ -998,18 +1037,17 @@ function App() {
       <div className="tool-layout tool-layout--split">
         <div className="form-stack">
           <div className="form-grid form-grid--triple">
-            <label htmlFor="quick-digits">
-              จำนวนหลัก
-              <select
-                id="quick-digits"
-                value={quickForm.digits}
-                onChange={(event) => setQuickForm((prev) => ({ ...prev, digits: Number(event.target.value) }))}
-              >
-                <option value={2}>2 ตัว</option>
-                <option value={3}>3 ตัว</option>
-                <option value={6}>6 ตัว</option>
-              </select>
-            </label>
+            <CustomSelect
+              id="quick-digits"
+              label="จำนวนหลัก"
+              value={quickForm.digits}
+              options={[
+                { value: 2, label: '2 ตัว' },
+                { value: 3, label: '3 ตัว' },
+                { value: 6, label: '6 ตัว' },
+              ]}
+              onChange={(nextValue) => setQuickForm((prev) => ({ ...prev, digits: Number(nextValue) }))}
+            />
 
             <label htmlFor="quick-sets">
               จำนวนชุด
@@ -1028,20 +1066,16 @@ function App() {
               />
             </label>
 
-            <label htmlFor="quick-mode">
-              วิธีสุ่ม
-              <select
-                id="quick-mode"
-                value={quickForm.randomMode}
-                onChange={(event) => setQuickForm((prev) => ({ ...prev, randomMode: event.target.value }))}
-              >
-                {Object.entries(QUICK_RANDOM_MODES).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <CustomSelect
+              id="quick-mode"
+              label="วิธีสุ่ม"
+              value={quickForm.randomMode}
+              options={Object.entries(QUICK_RANDOM_MODES).map(([optionValue, optionLabel]) => ({
+                value: optionValue,
+                label: optionLabel,
+              }))}
+              onChange={(nextValue) => setQuickForm((prev) => ({ ...prev, randomMode: nextValue }))}
+            />
           </div>
 
           <div className="locked-grid">
@@ -1206,26 +1240,19 @@ function App() {
         title="ตรวจหวยหลายเลข"
         description="ออกแบบใหม่ให้ flow ชัดขึ้น: เลือกงวดใน header, วางเลขหลายใบ, ดูเฉพาะเลขที่ถูกรางวัล และรวมยอดเงินแบบไม่รบกวนสายตา"
         action={
-          <label className="action-select" htmlFor="selected-draw">
-            <span>งวดที่ตรวจ</span>
-            <select
-              id="selected-draw"
-              className="checker-draw-select"
-              value={selectedDraw?.drawDate ?? ''}
-              onChange={(event) => setSelectedDrawDate(event.target.value)}
-              disabled={resultsFeed.length === 0}
-            >
-              {resultsFeed.length > 0 ? (
-                resultsFeed.map((item) => (
-                  <option key={item.drawDate} value={item.drawDate}>
-                    {item.drawPeriod}
-                  </option>
-                ))
-              ) : (
-                <option value="">รอโหลดผลสลาก</option>
-              )}
-            </select>
-          </label>
+          <CustomSelect
+            id="selected-draw"
+            label="งวดที่ตรวจ"
+            className="action-select"
+            value={selectedDraw?.drawDate ?? ''}
+            disabled={resultsFeed.length === 0}
+            options={
+              resultsFeed.length > 0
+                ? resultsFeed.map((item) => ({ value: item.drawDate, label: item.drawPeriod }))
+                : [{ value: '', label: 'รอโหลดผลสลาก' }]
+            }
+            onChange={setSelectedDrawDate}
+          />
         }
       />
 
@@ -1315,16 +1342,17 @@ function App() {
         title="สรุปสถิติย้อนหลัง"
         description={`คำนวณจากผลสลากที่โหลดไว้สูงสุด ${historicalSummary.drawLimit} งวด พร้อมแยกสัญญาณที่ช่วยอ่านภาพรวมได้เร็วขึ้น`}
         action={
-          <label className="action-select" htmlFor="history-limit">
-            <span>ช่วงข้อมูล</span>
-            <select id="history-limit" value={historyLimit} onChange={(event) => handleHistoryLimitChange(event.target.value)}>
-              {HISTORY_LIMIT_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option} งวดล่าสุด
-                </option>
-              ))}
-            </select>
-          </label>
+          <CustomSelect
+            id="history-limit"
+            label="ช่วงข้อมูล"
+            className="action-select"
+            value={historyLimit}
+            options={HISTORY_LIMIT_OPTIONS.map((option) => ({
+              value: option,
+              label: `${option} งวดล่าสุด`,
+            }))}
+            onChange={handleHistoryLimitChange}
+          />
         }
       />
 
