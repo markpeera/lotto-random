@@ -754,15 +754,9 @@ function App() {
     recommended6d: ['080808'],
     reasons: ['หน้าเวอร์ชันนี้ออกแบบใหม่ให้เห็นเลขเด่น ชุดแนะนำ และที่มาของเลขชัดขึ้นในหน้าเดียว'],
   })
+  const latestQuickSlip = recentSlips.find((item) => item.sourceType === 'quick-pick') ?? null
 
   const savedIds = useMemo(() => new Set(savedSlips.map((item) => item.id)), [savedSlips])
-  const displayDigits = useMemo(() => {
-    const values = latestSlip.highlightNumbers.slice(0, 2)
-    while (values.length < 2) {
-      values.push('0')
-    }
-    return values
-  }, [latestSlip.highlightNumbers])
   const quickSummary = useMemo(
     () => `สุ่ม ${quickForm.digits} หลัก จำนวน ${quickForm.sets} ชุด · ${QUICK_RANDOM_MODES[quickForm.randomMode]}`,
     [quickForm.digits, quickForm.randomMode, quickForm.sets],
@@ -1029,14 +1023,22 @@ function App() {
     <section id="panel-quick-pick" className="tool-surface" aria-labelledby="tab-quick-pick">
       <SectionTitle
         icon={Sparkles}
-        eyebrow="Generator"
+        eyebrow="Quick Pick"
         title="สุ่มเลขเร็ว"
-        description="ลดจำนวน field ที่ผู้ใช้ต้องสแกนด้วยกลุ่ม control ชุดเดียว แล้วใช้ side summary ช่วยอธิบายโหมดสุ่มปัจจุบัน"
+        description="เลือกจำนวนหลัก จำนวนชุด และวิธีสุ่ม แล้วดูผลลัพธ์ต่อด้านล่าง"
         action={<span className="status-badge">{QUICK_RANDOM_MODES[quickForm.randomMode]}</span>}
       />
 
-      <div className="tool-layout tool-layout--split">
-        <div className="form-stack">
+      <div className="quick-flow">
+        <section className="quick-config" aria-labelledby="quick-config-title">
+          <div className="quick-config__head">
+            <div>
+              <span>ขั้นตอนที่ 1</span>
+              <h3 id="quick-config-title">ตั้งค่าการสุ่ม</h3>
+            </div>
+            <small>{quickForm.digits} หลัก · {quickForm.sets} ชุด</small>
+          </div>
+
           <div className="form-grid form-grid--triple">
             <CustomSelect
               id="quick-digits"
@@ -1079,73 +1081,104 @@ function App() {
             />
           </div>
 
-          <div className="locked-grid">
-            {Array.from({ length: quickForm.digits }).map((_, index) => (
-              <label key={`lock-${index}`} htmlFor={`lock-${index}`}>
-                ล็อกหลัก {index + 1}
+          <details className="quick-advanced">
+            <summary>
+              <span>ตัวเลือกเพิ่มเติม</span>
+              <small>ล็อกหลักหรือตัดเลขที่ไม่ต้องการ</small>
+            </summary>
+            <div className="quick-advanced__content">
+              <div className="locked-grid">
+                {Array.from({ length: quickForm.digits }).map((_, index) => (
+                  <label key={`lock-${index}`} htmlFor={`lock-${index}`}>
+                    หลัก {index + 1}
+                    <input
+                      id={`lock-${index}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      placeholder="-"
+                      value={quickForm.lockedDigits[index]}
+                      onChange={(event) => {
+                        const next = [...quickForm.lockedDigits]
+                        next[index] = event.target.value.replace(/[^\d]/g, '').slice(0, 1)
+                        setQuickForm((prev) => ({ ...prev, lockedDigits: next }))
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <label htmlFor="quick-excluded">
+                เลขที่ไม่ต้องการ
                 <input
-                  id={`lock-${index}`}
+                  id="quick-excluded"
                   type="text"
                   inputMode="numeric"
-                  maxLength={1}
-                  value={quickForm.lockedDigits[index]}
-                  onChange={(event) => {
-                    const next = [...quickForm.lockedDigits]
-                    next[index] = event.target.value.replace(/[^\d]/g, '').slice(0, 1)
-                    setQuickForm((prev) => ({ ...prev, lockedDigits: next }))
-                  }}
+                  spellCheck="false"
+                  placeholder="เช่น 0, 13 หรือ 668"
+                  value={quickForm.excludedDigits}
+                  onChange={(event) =>
+                    setQuickForm((prev) => ({
+                      ...prev,
+                      excludedDigits: event.target.value.replace(/[^\d]/g, ''),
+                    }))
+                  }
                 />
               </label>
-            ))}
+            </div>
+          </details>
+
+          <button type="button" className="primary-btn quick-submit" onClick={handleQuickPick}>
+            <Sparkles size={16} />
+            สุ่ม {quickForm.digits} หลัก {quickForm.sets} ชุด
+          </button>
+        </section>
+
+        <section className="quick-output" aria-live="polite" aria-labelledby="quick-output-title">
+          <div className="quick-output__head">
+            <div>
+              <span>ขั้นตอนที่ 2</span>
+              <h3 id="quick-output-title">ผลการสุ่ม</h3>
+            </div>
+            {latestQuickSlip ? (
+              <div className="slip-actions">
+                <button type="button" className="ghost-btn" onClick={() => handleSaveSlip(latestQuickSlip)}>
+                  <Save size={15} />
+                  {savedIds.has(latestQuickSlip.id) ? 'บันทึกแล้ว' : 'บันทึก'}
+                </button>
+                <button type="button" className="ghost-btn" onClick={() => handleShareSlip(latestQuickSlip)}>
+                  <Send size={15} />
+                  แชร์
+                </button>
+              </div>
+            ) : null}
           </div>
 
-          <label htmlFor="quick-excluded">
-            ตัดเลขที่ไม่ต้องการออก
-            <input
-              id="quick-excluded"
-              type="text"
-              inputMode="numeric"
-              spellCheck="false"
-              placeholder="เช่น 0 หรือ 13 หรือ 668"
-              value={quickForm.excludedDigits}
-              onChange={(event) =>
-                setQuickForm((prev) => ({
-                  ...prev,
-                  excludedDigits: event.target.value.replace(/[^\d]/g, ''),
-                }))
-              }
-            />
-          </label>
-
-          <button type="button" className="primary-btn block-btn" onClick={handleQuickPick}>
-            <Sparkles size={16} />
-            สร้างโพยสุ่มเลข
-          </button>
-        </div>
-
-        <aside className="tool-aside">
-          <article className="info-card">
-            <span className="eyebrow">กลยุทธ์ที่ใช้</span>
-            <strong>{QUICK_RANDOM_MODES[quickForm.randomMode]}</strong>
-            <p>
-              {quickForm.randomMode === 'balanced'
-                ? 'สุ่มแบบกระจายทุกเลขเท่ากัน เหมาะกับการเริ่มต้นแบบไม่ต้องพึ่งสถิติย้อนหลัง'
-                : `ใช้ความถี่เลขเด่นจาก ${historicalSummary.drawCount}/${historyLimit} งวดล่าสุดเป็นน้ำหนักในการสุ่ม เพื่อช่วยจัดลำดับความสำคัญของเลข`}
-            </p>
-          </article>
-
-          <article className="info-card">
-            <span className="eyebrow">เลขเด่นล่าสุด</span>
-            <div className="display-slots">
-              {displayDigits.map((digit, index) => (
-                <div key={`${digit}-${index}`} className="display-slot">
-                  {digit}
-                </div>
-              ))}
+          {latestQuickSlip ? (
+            <>
+              <div className="quick-number-grid">
+                <NumberGroup label="เลขเด่น" values={latestQuickSlip.highlightNumbers} />
+                <NumberGroup label="เลข 2 ตัว" values={latestQuickSlip.recommended2d} />
+                <NumberGroup label="เลข 3 ตัว" values={latestQuickSlip.recommended3d} />
+                <NumberGroup label="เลข 6 ตัว" values={latestQuickSlip.recommended6d} />
+              </div>
+              <details className="quick-reason">
+                <summary>ดูที่มาของเลข</summary>
+                <ul>
+                  {latestQuickSlip.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </details>
+            </>
+          ) : (
+            <div className="quick-output__empty">
+              <Sparkles size={22} aria-hidden="true" />
+              <strong>ผลลัพธ์จะแสดงตรงนี้</strong>
+              <span>ตั้งค่าด้านบนแล้วกดปุ่มสุ่มเลข</span>
             </div>
-            <p className="info-card__meta">อ้างอิงจากโพยล่าสุดที่สร้างในเครื่อง</p>
-          </article>
-        </aside>
+          )}
+        </section>
       </div>
     </section>
   )
@@ -1682,47 +1715,48 @@ function App() {
 
           <FeatureNav items={NAV_ITEMS} activeFeature={activeFeature} onChange={setActiveFeature} />
 
-          <div className="workspace-grid">
+          <div className={`workspace-grid ${activeFeature === 'quick-pick' ? 'is-single-column' : ''}`}>
             <div className="workspace-main">{renderActiveFeature()}</div>
 
-            <aside className="workspace-side">
-              <SlipCard
-                slip={latestSlip}
-                onSave={handleSaveSlip}
-                onShare={handleShareSlip}
-                isSaved={savedIds.has(latestSlip.id)}
-              />
-
-              <section className="tool-card">
-                <SectionTitle
-                  icon={ClipboardList}
-                  eyebrow="Saved Slips"
-                  title="โพยที่บันทึกไว้"
-                  description="กดแชร์หรือย้อนกลับมาดูเลขเด่นได้จาก sidebar นี้ทันที"
-                  action={<span className="status-badge">{savedSlips.length} รายการ</span>}
+            {activeFeature !== 'quick-pick' ? (
+              <aside className="workspace-side">
+                <SlipCard
+                  slip={latestSlip}
+                  onSave={handleSaveSlip}
+                  onShare={handleShareSlip}
+                  isSaved={savedIds.has(latestSlip.id)}
                 />
 
-                <div className="saved-list">
-                  {savedSlips.length > 0 ? (
-                    savedSlips.map((slip) => (
-                      <button key={slip.id} type="button" className="saved-item" onClick={() => handleShareSlip(slip)}>
-                        <div>
-                          <strong>{slip.title}</strong>
-                          <p>{slip.highlightNumbers.join(', ')}</p>
-                        </div>
-                        <span>{new Date(slip.createdAt).toLocaleDateString('th-TH')}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="tool-empty compact">
-                      <strong>ยังไม่มีโพยที่บันทึกไว้</strong>
-                      <p>กดบันทึกจากผลลัพธ์ล่าสุด แล้วรายการจะมาแสดงที่นี่</p>
-                    </div>
-                  )}
-                </div>
-              </section>
+                <section className="tool-card">
+                  <SectionTitle
+                    icon={ClipboardList}
+                    eyebrow="Saved Slips"
+                    title="โพยที่บันทึกไว้"
+                    description="กดแชร์หรือย้อนกลับมาดูเลขเด่นได้จาก sidebar นี้ทันที"
+                    action={<span className="status-badge">{savedSlips.length} รายการ</span>}
+                  />
 
-            </aside>
+                  <div className="saved-list">
+                    {savedSlips.length > 0 ? (
+                      savedSlips.map((slip) => (
+                        <button key={slip.id} type="button" className="saved-item" onClick={() => handleShareSlip(slip)}>
+                          <div>
+                            <strong>{slip.title}</strong>
+                            <p>{slip.highlightNumbers.join(', ')}</p>
+                          </div>
+                          <span>{new Date(slip.createdAt).toLocaleDateString('th-TH')}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="tool-empty compact">
+                        <strong>ยังไม่มีโพยที่บันทึกไว้</strong>
+                        <p>กดบันทึกจากผลลัพธ์ล่าสุด แล้วรายการจะมาแสดงที่นี่</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </aside>
+            ) : null}
           </div>
         </section>
 
