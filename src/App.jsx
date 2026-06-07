@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ClipboardList,
   Copy,
+  Eraser,
   History,
   Radar,
   RefreshCcw,
@@ -1236,9 +1237,9 @@ function App() {
     <section id="panel-prize-checker" className="tool-surface" aria-labelledby="tab-prize-checker">
       <SectionTitle
         icon={Trophy}
-        eyebrow="Verification"
+        eyebrow="Prize Checker"
         title="ตรวจหวยหลายเลข"
-        description="ออกแบบใหม่ให้ flow ชัดขึ้น: เลือกงวดใน header, วางเลขหลายใบ, ดูเฉพาะเลขที่ถูกรางวัล และรวมยอดเงินแบบไม่รบกวนสายตา"
+        description="วางเลขสลากได้หลายใบ ระบบตรวจและรวมเงินรางวัลให้อัตโนมัติ"
         action={
           <CustomSelect
             id="selected-draw"
@@ -1256,46 +1257,67 @@ function App() {
         }
       />
 
-      <div className="tool-layout tool-layout--split">
-        <div className="form-stack">
-          <label htmlFor="ticket-input">
-            เลขสลากกินแบ่ง
+      <div className="checker-workspace">
+        <div className="checker-entry">
+          <div className="checker-entry__head">
+            <div>
+              <label htmlFor="ticket-input">เลขสลากกินแบ่ง 6 หลัก</label>
+              <span>{ticketNumbers.length > 0 ? `อ่านได้ ${ticketNumbers.length} ใบ` : 'ยังไม่มีเลขสำหรับตรวจ'}</span>
+            </div>
+            {ticketInput ? (
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="ล้างเลขสลากทั้งหมด"
+                title="ล้างเลขสลากทั้งหมด"
+                onClick={() => setTicketInput('')}
+              >
+                <Eraser size={17} />
+              </button>
+            ) : null}
+          </div>
+
+          <div className="checker-input-wrap">
             <textarea
               id="ticket-input"
               className="checker-input"
               value={ticketInput}
               inputMode="numeric"
               spellCheck="false"
-              placeholder={'เช่น 123456, 444444 หรือวางหลายบรรทัด\n123456\n789012\n444444'}
+              aria-describedby="ticket-input-help"
+              placeholder={'123456\n789012\n444444'}
               rows={8}
               onChange={(event) => setTicketInput(event.target.value)}
             />
-          </label>
-          <p className="helper-copy">รองรับการวางหลายเลขพร้อมกัน ระบบจะคัดเฉพาะใบที่ถูกรางวัลมาแสดงผลให้โดยอัตโนมัติ</p>
+            <span id="ticket-input-help">แยกแต่ละเลขด้วยเว้นวรรค เครื่องหมายจุลภาค หรือขึ้นบรรทัดใหม่</span>
+          </div>
         </div>
 
-        <aside className="tool-aside">
-          <article className={`checker-summary ${canCheckTicket ? 'is-ready' : ''}`}>
+        <aside className={`checker-summary ${canCheckTicket ? 'is-ready' : ''}`}>
+          <div className="checker-summary__head">
+            <span>ผลการตรวจ</span>
+            <strong>
+              {canCheckTicket
+                ? checkerSummary.totalMatches > 0
+                  ? 'พบเลขถูกรางวัล'
+                  : 'ไม่พบเลขถูกรางวัล'
+                : 'รอเลขสลาก'}
+            </strong>
+          </div>
+          <div className="checker-summary__stats">
             <div>
-              <span className="eyebrow">ผลการตรวจ</span>
-              <strong>
-                {canCheckTicket
-                  ? checkerSummary.totalMatches > 0
-                    ? `พบ ${checkerSummary.totalMatches} รางวัล จาก ${checkerSummary.winningTickets} ใบ`
-                    : 'ยังไม่มีเลขถูกรางวัล'
-                  : 'วางเลข 6 หลักได้หลายรายการ'}
-              </strong>
-              <p>
-                {selectedDraw
-                  ? `ตรวจ ${ticketNumbers.length} ใบ จาก ${checkerSummary.checkedPrizeCount} หมายเลขรางวัลของงวด ${selectedDraw.drawPeriod}`
-                  : 'ระบบจะตรวจได้หลังจากโหลดผลสลากสำเร็จ'}
-              </p>
+              <span>ตรวจแล้ว</span>
+              <strong>{ticketNumbers.length} ใบ</strong>
             </div>
-            <div className="checker-total">
+            <div>
+              <span>ถูกรางวัล</span>
+              <strong>{checkerSummary.winningTickets} ใบ</strong>
+            </div>
+            <div className="is-total">
               <span>เงินรางวัลรวม</span>
               <strong>{formatCurrency(checkerSummary.totalPrize)} บาท</strong>
             </div>
-          </article>
+          </div>
         </aside>
       </div>
 
@@ -1338,9 +1360,9 @@ function App() {
     <section id="panel-history-summary" className="tool-surface" aria-labelledby="tab-history-summary">
       <SectionTitle
         icon={Activity}
-        eyebrow="Historical Signals"
+        eyebrow="Statistics"
         title="สรุปสถิติย้อนหลัง"
-        description={`คำนวณจากผลสลากที่โหลดไว้สูงสุด ${historicalSummary.drawLimit} งวด พร้อมแยกสัญญาณที่ช่วยอ่านภาพรวมได้เร็วขึ้น`}
+        description="ดูเลขที่ออกบ่อย เลขที่เว้นช่วงนาน และตัวเลขที่พบมากในผลย้อนหลัง"
         action={
           <CustomSelect
             id="history-limit"
@@ -1356,41 +1378,24 @@ function App() {
         }
       />
 
-      <div className="overview-grid">
-        <article className="summary-panel">
-          <div className="card-topline">
-            <p className="eyebrow">แหล่งข้อมูล</p>
-            <span className="status-badge">{historicalSummary.drawCount} งวด</span>
-          </div>
-          <strong className="summary-panel__headline">
-            {historicalSummary.drawCount > 0
-              ? `ใช้ช่วง ${historicalSummary.latestDrawPeriod} ถึง ${historicalSummary.oldestDrawPeriod}`
-              : 'ยังไม่มีข้อมูลผลย้อนหลังสำหรับคำนวณ'}
-          </strong>
-          <p className="summary-panel__copy">
-            ข้อมูลมาจากระบบกลางของแอป โดย backend จะดึงจาก {LOTTO_SOURCE_LABEL} และ cache ไว้ก่อนส่งให้หน้าเว็บ
-            สรุปนี้ใช้เพื่อการอ่าน pattern ย้อนหลัง ไม่ใช่การทำนายผลในอนาคต
-          </p>
-        </article>
-
-        <article className="summary-panel">
-          <div className="card-topline">
-            <p className="eyebrow">สถานะการโหลด</p>
-            <span className="status-badge">{isResultsLoading ? 'กำลังโหลด' : 'พร้อมใช้'}</span>
-          </div>
-          <strong className="summary-panel__headline">{formatSyncClock(lastResultsSync)}</strong>
-          <p className="summary-panel__copy">{resultsSourceLabel}</p>
-        </article>
+      <div className="history-meta" aria-live="polite">
+        <span>{historicalSummary.drawCount} งวด</span>
+        <p>
+          {historicalSummary.drawCount > 0
+            ? `${historicalSummary.latestDrawPeriod} - ${historicalSummary.oldestDrawPeriod}`
+            : 'ยังไม่มีข้อมูลสำหรับคำนวณ'}
+          {lastResultsSync ? ` · อัปเดต ${formatSyncClock(lastResultsSync)}` : ''}
+        </p>
       </div>
 
       <div className="stats-grid">
         <article className="stat-card">
-          <span>เลขท้าย 2 ตัวที่ออกบ่อย</span>
+          <span>ออกบ่อยที่สุด</span>
           <strong>{historicalSummary.frequentLast2[0]?.value ?? '--'}</strong>
-          <p>{historicalSummary.frequentLast2[0] ? `${historicalSummary.frequentLast2[0].count} ครั้ง` : 'รอข้อมูลย้อนหลัง'}</p>
+          <p>{historicalSummary.frequentLast2[0] ? `เลขท้าย 2 ตัว · ${historicalSummary.frequentLast2[0].count} ครั้ง` : 'รอข้อมูลย้อนหลัง'}</p>
         </article>
         <article className="stat-card">
-          <span>เลขท้าย 2 ตัวที่ห่าง</span>
+          <span>เว้นช่วงนานที่สุด</span>
           <strong>{historicalSummary.overdueLast2[0]?.value ?? '--'}</strong>
           <p>
             {historicalSummary.overdueLast2[0]
@@ -1401,28 +1406,26 @@ function App() {
           </p>
         </article>
         <article className="stat-card">
-          <span>เลขเด่นสูงสุด</span>
+          <span>ตัวเลขที่พบมากที่สุด</span>
           <strong>{historicalSummary.standoutDigits[0]?.value ?? '--'}</strong>
-          <p>{historicalSummary.standoutDigits[0] ? `${historicalSummary.standoutDigits[0].count} จุด` : 'ยังไม่มีสัญญาณเด่น'}</p>
-        </article>
-        <article className="stat-card">
-          <span>โพยที่บันทึกไว้</span>
-          <strong>{savedSlips.length}</strong>
-          <p>พร้อมใช้เทียบกับเลข 2 ตัวย้อนหลัง</p>
+          <p>{historicalSummary.standoutDigits[0] ? `พบ ${historicalSummary.standoutDigits[0].count} ครั้ง` : 'รอข้อมูลย้อนหลัง'}</p>
         </article>
       </div>
 
       <div className="history-panels">
         <article className="history-card">
-          <span className="eyebrow">เลขท้าย 2 ตัวที่ออกบ่อย</span>
-          <div className="summary-chip-row">
+          <div className="history-card__head">
+            <h3>เลขท้าย 2 ตัวที่ออกบ่อย</h3>
+            <p>เรียงตามจำนวนครั้งที่ออก</p>
+          </div>
+          <div className="history-ranking">
             {historicalSummary.frequentLast2.length > 0 ? (
-              historicalSummary.frequentLast2.map((item) => (
-                <strong key={`frequent-${item.value}`}>
-                  {item.value}
-                  <small>{item.count} ครั้ง</small>
-                  <small>{item.drawPeriods.join(' / ')}</small>
-                </strong>
+              historicalSummary.frequentLast2.slice(0, 5).map((item) => (
+                <div key={`frequent-${item.value}`} className="history-ranking__row">
+                  <strong>{item.value}</strong>
+                  <span>{item.count} ครั้ง</span>
+                  <small>{item.drawPeriods[0] ? `ออกล่าสุด: ${item.drawPeriods[0]}` : 'ยังไม่มีข้อมูลงวด'}</small>
+                </div>
               ))
             ) : (
               <em>รอข้อมูลผลย้อนหลัง</em>
@@ -1431,15 +1434,18 @@ function App() {
         </article>
 
         <article className="history-card">
-          <span className="eyebrow">เลขท้าย 2 ตัวที่ห่างจากงวดล่าสุด</span>
-          <div className="summary-chip-row">
+          <div className="history-card__head">
+            <h3>เลขท้าย 2 ตัวที่เว้นช่วง</h3>
+            <p>เรียงจากเลขที่ไม่ได้ออกนานที่สุด</p>
+          </div>
+          <div className="history-ranking">
             {historicalSummary.overdueLast2.length > 0 ? (
-              historicalSummary.overdueLast2.map((item) => (
-                <strong key={`overdue-${item.value}`}>
-                  {item.value}
-                  <small>{item.drawsAgo === 0 ? 'งวดล่าสุด' : `${item.drawsAgo} งวดก่อน`}</small>
-                  <small>{item.drawPeriod}</small>
-                </strong>
+              historicalSummary.overdueLast2.slice(0, 5).map((item) => (
+                <div key={`overdue-${item.value}`} className="history-ranking__row">
+                  <strong>{item.value}</strong>
+                  <span>{item.drawsAgo === 0 ? 'งวดล่าสุด' : `${item.drawsAgo} งวดก่อน`}</span>
+                  <small>{item.drawPeriod ? `ออกล่าสุด: ${item.drawPeriod}` : 'ยังไม่มีข้อมูลงวด'}</small>
+                </div>
               ))
             ) : (
               <em>รอข้อมูลผลย้อนหลัง</em>
@@ -1448,41 +1454,31 @@ function App() {
         </article>
 
         <article className="history-card">
-          <span className="eyebrow">เลขเด่นจาก {historyLimit} งวดล่าสุด</span>
-          <div className="summary-chip-row">
+          <div className="history-card__head">
+            <h3>ตัวเลขที่พบมาก</h3>
+            <p>นับจากเลขรางวัลใน {historyLimit} งวดล่าสุด</p>
+          </div>
+          <div className="history-ranking">
             {historicalSummary.standoutDigits.length > 0 ? (
-              historicalSummary.standoutDigits.map((item) => (
-                <strong key={`digit-${item.value}`}>
-                  {item.value}
-                  <small>{item.count} จุด</small>
-                  <small>{item.drawPeriods.slice(0, 3).join(' / ')}</small>
-                </strong>
+              historicalSummary.standoutDigits.slice(0, 5).map((item) => (
+                <div key={`digit-${item.value}`} className="history-ranking__row">
+                  <strong>{item.value}</strong>
+                  <span>{item.count} ครั้ง</span>
+                  <small>นับรวมจากรางวัลทุกประเภท</small>
+                </div>
               ))
             ) : (
               <em>รอข้อมูลผลย้อนหลัง</em>
             )}
           </div>
-        </article>
-
-        <article className="history-card">
-          <span className="eyebrow">เทียบกับโพยที่บันทึกไว้</span>
-          {savedSlips.length > 0 ? (
-            <div className="saved-stat-list">
-              <p>
-                <strong>{historicalSummary.savedHistoricalHits.length}</strong> เลขในโพยเคยตรงเลขท้าย 2 ตัวในชุดข้อมูล
-              </p>
-              <p>
-                <strong>{historicalSummary.savedFrequentHits.length}</strong> เลขในโพยชนกลุ่มที่ออกบ่อย
-              </p>
-              <p>
-                <strong>{historicalSummary.savedOverdueHits.length}</strong> เลขในโพยชนกลุ่มที่ห่างจากงวดล่าสุด
-              </p>
-            </div>
-          ) : (
-            <p className="empty-copy">บันทึกโพยก่อน แล้วระบบจะช่วยเทียบเลข 2 ตัวของคุณกับสถิติย้อนหลังให้อัตโนมัติ</p>
-          )}
         </article>
       </div>
+
+      {savedSlips.length > 0 ? (
+        <p className="history-saved-note">
+          โพยที่บันทึกไว้ตรงกับเลขท้ายย้อนหลัง {historicalSummary.savedHistoricalHits.length} เลข
+        </p>
+      ) : null}
     </section>
   )
 
