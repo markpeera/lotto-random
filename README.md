@@ -1,348 +1,199 @@
-อันนี้คือ requirement + แนวคิดฟีเจอร์ + วิธีทำให้คนอยากเข้ามาใช้ สำหรับเว็บสุ่มหวย โดยวางจากพฤติกรรมคนไทยจริง ๆ ที่นิยมดู “เลขมงคล / เลขฝัน / เลขจากสิ่งรอบตัว” และฝั่ง GLO ก็มีทั้งผลย้อนหลังและสถิติย้อนหลังให้เอามาต่อยอดได้ด้วย อีกทั้งงวดหวยรัฐบาลไทยออกประจำวันที่ 1 และ 16 ของเดือน ทำให้มีจังหวะใช้งานซ้ำที่ชัดเจนมาก.
+# Lotto Random
 
-1) แนวคิดโปรดักต์
+Lotto Random is a Thai lottery companion web application for generating number ideas, interpreting dreams and everyday stories, checking tickets against lottery results, and exploring historical statistics.
 
-เว็บนี้ไม่ควรเป็นแค่ “ปุ่มสุ่มเลข”
-แต่ควรเป็นเว็บแนว
+The application is designed for entertainment and decision support. It does not predict or guarantee lottery results.
 
-“ผู้ช่วยหาเลข + ตีเลขจากเรื่องราว + ให้เหตุผล + ทำให้รู้สึกสนุกและอยากกลับมาใช้ทุกงวด”
+## Features
 
-แก่นจริง ๆ ของคนใช้คือ:
+- Quick Pick for 2-digit, 3-digit, and 6-digit number sets
+- Configurable random generation with weighted hot, cold, and balanced modes
+- Dream-to-number interpretation using configurable dream rules
+- Story and symbol-to-number interpretation using configurable symbol rules
+- Explainable results with highlighted numbers and reasons
+- Save generated slips locally and share slip text
+- Prize checker for six-digit tickets, including:
+  - First prize
+  - Adjacent first-prize numbers
+  - Second through fifth prizes
+  - Front three, back three, and last two numbers
+- Historical statistics for recent draws, including frequent and overdue numbers
+- Lottery result history loaded from the backend proxy
+- Persistent browser and server-side caching to reduce external API requests
+- Retry, rate-limit handling, stale-cache fallback, and partial-result handling
+- Manual result overrides for configured draws when an external source needs correction or supplementation
+- Responsive Thai-language UI with mobile-first layouts and accessible controls
 
-ไม่รู้จะเลือกเลขอะไร
-อยากมี “ที่มา” ของเลข ไม่ใช่สุ่มมั่ว
-ชอบตีเลขจากความฝัน สิ่งที่เห็น เหตุการณ์ วันเกิด ทะเบียนรถ บ้านเลขที่ สี เสื้อสัตว์ หรือเรื่องแปลก ๆ
-ชอบเช็กเลขเด่น เลขฮิต และเก็บเลขไว้ก่อนวันออก
+## Tech stack
 
-ดังนั้น value หลักของเว็บควรเป็น:
+- React 19
+- Vite 7
+- JavaScript with ES modules
+- Tailwind CSS 4 through `@tailwindcss/vite`
+- Node.js HTTP server for the API proxy and production static hosting
+- ESLint 9
+- `framer-motion`, `lucide-react`, and `canvas-confetti`
 
-“ช่วยแปลงความเชื่อ/ความฝัน/สิ่งที่เห็น ให้กลายเป็นเลขที่รู้สึกมีความหมายกับผู้ใช้”
+## Requirements
 
-2) เป้าหมายของเว็บ
-เป้าหมายหลัก
-ช่วยผู้ใช้หาเลขได้เร็ว
-ทำให้รู้สึกว่าเลขที่ได้ “มีที่มา”
-ทำให้กลับมาใช้ซ้ำทุกงวด
-ทำให้แชร์ต่อได้
-กลุ่มผู้ใช้
-คนที่ไม่รู้จะซื้อเลขอะไร
-คนที่ชอบตีเลขจากความฝัน
-คนที่ชอบเลขมงคล เลขวันเกิด เลขทะเบียน
-คนที่อยากได้ไอเดียเลขแบบเร็ว ๆ ก่อนวันหวยออก
-3) Core Features ที่ควรมี
-A. สุ่มเลขพื้นฐาน
+- Node.js 20 or later is recommended
+- npm
+- Network access for fresh lottery results from the external API
 
-ฟีเจอร์เริ่มต้นที่ต้องมี
+## Getting started
 
-สุ่ม 2 ตัว
-สุ่ม 3 ตัว
-สุ่ม 6 ตัว
-เลือกจำนวนชุดที่อยากสุ่ม
-ล็อกบางหลักได้ เช่น อยากได้เลขลงท้าย 7
-ตัดเลขที่ไม่ชอบออกได้ เช่น ไม่เอา 13 / 66 / 0
+Install dependencies:
 
-เหตุผล:
-ผู้ใช้บางคนอยาก “สุ่มเร็ว” เลย ไม่ต้องกรอกอะไรเยอะ
+```bash
+npm ci
+```
 
-B. แปลงความฝันเป็นเลข
+Start the development environment:
 
-นี่ควรเป็นฟีเจอร์เด่นมาก
+```bash
+npm run dev
+```
 
-อินพุต:
+The development command starts the Node API server and the Vite development server. Open the URL shown by Vite, usually [http://localhost:5173](http://localhost:5173).
 
-พิมพ์ความฝัน เช่น “ฝันว่างูเข้าบ้าน” / “ฝันเห็นคนแก่” / “ฝันว่าฟันหลุด”
-หรือเลือกจากหมวดความฝัน
+## Available scripts
 
-เอาต์พุต:
+```bash
+# Start the API server and Vite development server
+npm run dev
 
-เลขเด่น
-เลขรอง
-ชุด 2 ตัว / 3 ตัว / 6 ตัว
-คำอธิบายสั้น ๆ ว่าทำไมถึงได้เลขนี้
+# Start only the Vite client
+npm run dev:client
 
-สิ่งสำคัญ:
-อย่าแสดงแค่เลข ต้องแสดง “ที่มา” เช่น
+# Start only the Node API/static server
+npm run api
 
-สัญลักษณ์หลักในฝัน
-อารมณ์ในฝัน
-จำนวนสิ่งของ/คน
-สี / สถานที่ / เวลา
+# Create a production client build
+npm run build
 
-เพราะคนใช้จะรู้สึกว่า “มันมี logic” มากกว่าเว็บสุ่มธรรมดา
+# Serve the production build through the Node server
+npm run start
 
-C. ตีเลขจากสิ่งที่เห็น
+# Preview the Vite build
+npm run preview
 
-ฟีเจอร์นี้น่าสนใจมากและเหมาะกับพฤติกรรมคนไทยที่ชอบโยงสิ่งรอบตัวเป็นเลข
+# Run ESLint
+npm run lint
+```
 
-ตัวอย่าง input:
+## API endpoints
 
-เห็นงู
-เห็นรถชน
-เห็นแมวคลอดลูก 4 ตัว
-เห็นเลขบ้าน
-เห็นทะเบียนรถ
-เห็นนาฬิกา 11:11
-เจอใบเสร็จ 287 บาท
+The Node server provides a small proxy layer for lottery data:
 
-ระบบควรทำได้:
+| Endpoint | Description |
+| --- | --- |
+| `GET /api/health` | Returns the proxy health status |
+| `GET /api/lottery-results` | Returns the latest lottery results; accepts an optional `limit` query parameter |
 
-ให้ผู้ใช้พิมพ์เรื่องที่เจอ
-ระบบสรุปเลขที่เกี่ยวข้อง
-มี “เลขตรง” และ “เลขตีความ”
+Example:
 
-ตัวอย่าง:
-“เห็นแมวดำ 2 ตัวตอน 6 โมงเย็น”
-อาจแตกเป็น:
+```text
+GET /api/lottery-results?limit=8
+```
 
-จำนวน 2
-เวลา 6
-สีดำ → mapping เชิงความเชื่อ
-ได้เลขเด่น 2, 6
-จัดชุด 26, 62, 206, 620
-D. เลขจากข้อมูลส่วนตัว
+The API response normalizes the external result format into the structure consumed by the client and includes cache/source metadata.
 
-ฟีเจอร์ที่คนใช้จริงแน่
-
-วันเกิด
-อายุ
-ปีเกิด
-บ้านเลขที่
-ทะเบียนรถ
-เบอร์โทร
-เลขที่ห้อง
-วันสำคัญ/วันครบรอบ
-
-ระบบควรทำ:
-
-แตกเลขเด่น
-สร้างเลข 2/3/6 ตัวจากการผสม
-มี preset เช่น “เน้นเลขเบิ้ล”, “เน้นเลขท้าย”, “เน้นเลขมงคล”
-E. เลขมาแรง / เลขคนใช้เยอะ
-
-ฟีเจอร์ engagement สำคัญมาก
-
-แสดง:
-
-เลขที่ถูก generate มากสุดในงวดนี้
-เลขเด่นประจำวัน
-เลขจากหมวดฝันที่คนค้นบ่อย
-เลขยอดฮิตก่อนวันออก
-trend ขึ้น/ลง
-
-ข้อดี:
-คนจะรู้สึกว่าเว็บ “มีชีวิต” ไม่ใช่เครื่องสุ่มนิ่ง ๆ
-
-F. บันทึกเลขที่ชอบ
-กดหัวใจเก็บเลข
-สร้าง “โพยส่วนตัว”
-แยกเป็นงวด
-export เป็นภาพได้
-แชร์ให้เพื่อนได้
-
-อันนี้สำคัญ เพราะคนไม่ได้อยากแค่ดู เขาอยาก “เก็บไว้ก่อน”
-
-G. เช็กผลย้อนหลัง / สถิติย้อนหลัง
-
-GLO มีผลย้อนหลังและสถิติย้อนหลังอยู่แล้ว จึงเอามาต่อยอดทำ UX ให้ใช้ง่ายขึ้นได้.
-
-เว็บคุณควรมี:
-
-เช็กผลย้อนหลัง
-ดูสถิติเลขท้าย 2 ตัว / 3 ตัว
-เลขที่ออกบ่อย
-เลขที่ไม่ออกนาน
-ปฏิทินงวดก่อนหน้า
-
-แต่ต้องระวังการสื่อสาร:
-อย่าทำเหมือน “การันตี”
-ให้ใช้คำว่า
-
-“สถิติย้อนหลัง”
-“เลขที่ออกบ่อยในอดีต”
-“ใช้เพื่อประกอบการตัดสินใจ/ความบันเทิง”
-4) ฟีเจอร์ที่ทำให้คน “อยากเข้ามาใช้”
-
-อันนี้สำคัญกว่าตัวสุ่มอีก
-
-1. ทำให้รู้สึกว่าเลขนี้ “เป็นของฉัน”
-
-ไม่ใช่ random เฉย ๆ
-แต่เป็นเลขจาก:
-
-ฝันของฉัน
-สิ่งที่ฉันเจอ
-วันเกิดฉัน
-เรื่องที่ฉันเพิ่งเล่าให้เว็บฟัง
-
-ความ personalized จะทำให้ user รู้สึกผูกกับผลลัพธ์มากกว่า
-
-2. มีคำอธิบาย ไม่ใช่โยนเลขเฉย ๆ
-
-ตัวอย่าง:
-
-เลขเด่น: 2, 6
-เพราะในเรื่องของคุณมี “แมว 2 ตัว” และ “เวลา 6 โมง”
-ชุดแนะนำ: 26, 62, 206, 620
-
-สิ่งนี้ทำให้ user รู้สึกว่าเว็บฉลาดและน่าใช้กว่าคู่แข่ง
-
-3. ใช้ง่ายมากใน 5 วินาที
-
-หน้าแรกควรมี 3 ปุ่มใหญ่เลย:
-
-สุ่มเลขเร็ว
-ตีเลขจากความฝัน
-ตีเลขจากสิ่งที่เจอ
-
-ห้ามให้ผู้ใช้คิดเยอะตั้งแต่ต้น
-
-4. มี content loop ทุกงวด
-
-เพราะหวยออกวันที่ 1 และ 16 ของเดือน เว็บควรดันคนกลับมาก่อนงวดออก 2-3 วัน และวันออกผล.
-
-เช่น:
-
-เลขเด่นงวดนี้
-คนกำลังตีเลขจากอะไรเยอะ
-ความฝันยอดฮิตสัปดาห์นี้
-เลขที่ถูกบันทึกมากสุด
-5. แชร์ง่าย
-
-คนไทยชอบส่งเลขให้กันในแชต
-ดังนั้นควรมี:
-
-แชร์โพยเป็นรูป
-แชร์เลขพร้อมคำอธิบาย
-แชร์ “ฉันได้เลขนี้จากฝันว่า...”
-
-อันนี้ช่วยโตแบบ organic มาก
-
-6. มี gimmick สนุก ๆ
-
-เช่น:
-
-วงล้อสุ่มเลข
-ไพ่เลขมงคล
-เขย่ามือถือเพื่อสุ่ม
-เปิด “กล่องเลขประจำวัน”
-สุ่มเลขตามโหมด “เบิ้ล / ตอง / สลับ / มงคล / ฝัน”
-
-คนจะรู้สึกว่าเข้าเว็บแล้วเพลิน
-
-5) Requirement เชิงระบบ
-Functional Requirements
-ผู้ใช้สามารถสุ่มเลข 2/3/6 หลักได้
-ผู้ใช้สามารถกำหนดเงื่อนไขการสุ่มได้
-ผู้ใช้สามารถพิมพ์ความฝันเพื่อให้ระบบตีเลขได้
-ผู้ใช้สามารถพิมพ์เหตุการณ์หรือสิ่งที่พบเห็นเพื่อให้ระบบแปลงเป็นเลขได้
-ผู้ใช้สามารถกรอกข้อมูลส่วนตัว เช่น วันเกิด ทะเบียนรถ บ้านเลขที่ เพื่อสร้างเลขได้
-ระบบแสดงเลขเด่น เลขรอง และชุดเลขแนะนำ
-ระบบแสดงคำอธิบายที่มาของเลข
-ผู้ใช้สามารถบันทึกเลขที่ชอบได้
-ผู้ใช้สามารถสร้างโพยส่วนตัวและแชร์ได้
-ระบบแสดงเลขยอดนิยมและเทรนด์ของงวดปัจจุบันได้
-ระบบแสดงผลรางวัลย้อนหลังและสถิติย้อนหลังได้
-ระบบมีหน้าปฏิทินงวดหวย
-ระบบสามารถแจ้งเตือนผู้ใช้ก่อนวันหวยออกได้
-ผู้ใช้สามารถดูประวัติเลขที่เคยสุ่ม/เคยบันทึกได้
-Non-Functional Requirements
-โหลดไว โดยเฉพาะบนมือถือ
-mobile-first
-ใช้งานได้ง่ายใน 1 มือ
-รองรับคนเข้าเยอะช่วงก่อนหวยออก
-SEO ดีสำหรับคีย์เวิร์ดสายหวย
-แชร์ลิงก์แล้ว preview สวย
-มี analytics ดูว่า user ใช้อะไรเยอะสุด
-มีระบบ moderation ถ้ามี content จากผู้ใช้
-6) หน้าในระบบที่ควรมี
-หน้า Home
-ปุ่ม 3 อย่าง: สุ่มเร็ว / ตีเลขฝัน / ตีเลขจากสิ่งที่เจอ
-เลขมาแรง
-เลขยอดฮิตงวดนี้
-ปุ่มเช็กผลย้อนหลัง
-หน้า Dream to Number
-ช่องพิมพ์ความฝัน
-หมวดความฝันยอดนิยม
-ผลลัพธ์เลขเด่น + คำอธิบาย
-หน้า Story to Number
-ช่องพิมพ์เรื่องที่เจอ
-ตัวช่วย tag เช่น คน / สัตว์ / รถ / บ้าน / เวลา / สี
-ผลลัพธ์เลข
-หน้า Quick Random
-เลือก 2/3/6 ตัว
-ตั้งเงื่อนไข
-กดสุ่มหลายชุด
-หน้า Saved Numbers
-รายการเลขที่บันทึก
-แยกตามงวด
-ปุ่มแชร์
-หน้า Trends
-เลขยอดนิยม
-หมวดฝันที่ค้นบ่อย
-เลขที่ถูกเซฟมากสุด
-heatmap เลข
-หน้า Results & History
-ตรวจผลย้อนหลัง
-สถิติย้อนหลัง
-ปฏิทินงวด
-7) วิธีทำให้คนกลับมาใช้ซ้ำ
-Hook หลัก
-“เลขเด่นประจำวัน”
-“เลขมาแรงงวดนี้”
-“ทำนายเลขจากฝันล่าสุด”
-“กล่องสุ่มเลขวันนี้”
-Retention
-เก็บโพยของผู้ใช้
-แจ้งเตือนก่อนหวยออก
-สรุปเลขที่ผู้ใช้เคยชอบ
-“งวดนี้คุณยังไม่ได้เลือกเลข”
-Social
-แชร์เลขพร้อม artwork สวย ๆ
-ให้คอมเมนต์หรือ react กับเลขยอดฮิต
-หน้า community แบบเบา ๆ เช่น “วันนี้คนกำลังตีเลขจากอะไรมากที่สุด”
-8) สิ่งที่ควรระวัง
-
-เพราะเรื่องนี้แตะการพนัน ควรทำ messaging ให้ดี
-
-ใช้คำว่า “เพื่อความบันเทิง / ไอเดียเลข”
-ไม่ควรเคลมว่า “แม่น” หรือ “การันตี”
-ถ้ามีสถิติย้อนหลัง ต้องบอกชัดว่าเป็นข้อมูลในอดีต ไม่ได้ยืนยันอนาคต
-ถ้ามีการเชื่อมผลรางวัลหรือสถิติ ควรอ้างอิงข้อมูลทางการจาก GLO ให้ชัด.
-9) ถ้าจะทำ MVP จริง ๆ
-
-ผมแนะนำ MVP แบบนี้ก่อน:
-
-MVP v1
-สุ่มเลข 2/3/6 ตัว
-ตีเลขจากความฝัน
-ตีเลขจากสิ่งที่เจอ
-บันทึกเลขที่ชอบ
-แชร์โพยเป็นรูป
-หน้าเลขมาแรง
-หน้าเช็กผลย้อนหลัง
-
-แค่นี้ก็เริ่มน่าใช้แล้ว
-
-v2
-personal profile เลขจากวันเกิด/ทะเบียน
-แจ้งเตือนก่อนวันออก
-trend และ analytics
-AI ช่วยอธิบายที่มาของเลขให้ดีขึ้น
-v3
-community / user generated content
-ระบบสมาชิกเต็ม
-recommendation แบบ personalized
-10) สรุปแบบสั้นที่สุด
-
-ถ้าอยากให้เว็บนี้น่าใช้จริง:
-
-อย่าทำเป็นแค่ random number generator
-ต้องทำให้เลข “มีที่มา”
-ต้องใช้ง่ายมาก
-ต้องมีฟีเจอร์แชร์
-ต้องมี trend/เลขมาแรง
-ต้องทำให้คนกลับมาทุกงวด
-
-ประโยค positioning ที่ชัดมากอาจเป็น:
-
-“เว็บช่วยตีเลขจากความฝัน สิ่งที่เจอ และข้อมูลส่วนตัว พร้อมสุ่มเลขและเก็บโพยได้ในที่เดียว”
+## Configuration
+
+The server supports the following environment variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `4173` | Port used by the Node server |
+| `LOTTERY_CACHE_TTL_MS` | `600000` | Cache lifetime in milliseconds; defaults to 10 minutes |
+| `LOTTERY_CACHE_FILE` | `.cache/lottery-results.json` | Path for persistent lottery-result cache |
+
+Example:
+
+```bash
+LOTTERY_CACHE_TTL_MS=300000 npm run start
+```
+
+## Data sources and reliability
+
+Fresh draw data is fetched through the Rayriffy Thai Lottery API configured in `server/config.js`. The proxy fetches list and detail endpoints, normalizes prize data, retries failed detail requests, and limits concurrent requests.
+
+The application also supports configured manual overrides in `server/data/manualOverrides.json`. An override can use seeded data or fetch a configured source page when available. This is intended as a controlled fallback for draw data that is missing, incomplete, or needs verification.
+
+Because lottery data depends on external services, the application may show cached or partial results when the upstream API is unavailable or rate-limited. Always verify official results before treating a result as final.
+
+## Local storage
+
+The client stores user-specific, non-account data in browser `localStorage`, including:
+
+- Saved slips
+- Recent generations
+- UI preferences
+- A client-side lottery result cache
+
+Clearing browser storage removes saved slips and local preferences for that browser.
+
+## Project structure
+
+```text
+.
+├─ src/
+│  ├─ App.jsx                 # Main application UI and feature orchestration
+│  ├─ index.css               # Global design system and responsive styles
+│  ├─ lib/
+│  │  ├─ lotteryEngine.js     # Number generation and text interpretation logic
+│  │  └─ storage.js           # Browser storage helpers
+│  └─ data/
+│     ├─ dream-rules.json     # Dream interpretation rules
+│     └─ symbol-rules.json    # Story/symbol interpretation rules
+├─ server/
+│  ├─ index.js                # Production server entry point
+│  ├─ dev.js                  # Development process runner
+│  ├─ routes.js               # API and static-file routes
+│  ├─ config.js               # Server and upstream API configuration
+│  ├─ services/
+│  │  ├─ rayriffyClient.js    # External API client and retries
+│  │  ├─ lotteryNormalizer.js # External response normalization
+│  │  ├─ lotteryCache.js      # Memory and persistent cache
+│  │  ├─ lotteryService.js    # Result service orchestration
+│  │  └─ manualOverrideService.js
+│  └─ data/manualOverrides.json
+├─ docs/
+│  └─ thai-lotto-product-plan.md
+├─ public/
+├─ vite.config.js
+├─ eslint.config.js
+└─ package.json
+```
+
+## Data and rule updates
+
+To add or adjust dream or symbol interpretations, update the corresponding JSON file in `src/data/`. Each rule can provide tags, primary numbers, secondary numbers, and explanatory notes used to build a generated slip.
+
+To add a controlled lottery-result override, update `server/data/manualOverrides.json` with the draw date, source, and prize data. Verify the source and draw date carefully before committing changes.
+
+## Data scope and limitations
+
+- Generated numbers are random or rule-based suggestions for entertainment; they are not forecasts and do not improve the mathematical odds of winning.
+- Historical frequency and overdue-number views describe past results only. They must not be presented as evidence that a number is more likely to appear in a future draw.
+- Fresh results depend on the external Rayriffy API and, for configured overrides, the referenced source page. Availability, format, rate limits, and update timing may change.
+- Cached or manual data can be older than the official announcement. Verify results with the Government Lottery Office or another official channel.
+- The dream and symbol rules are a curated interpretation dataset, not a factual or scientific model.
+- The project does not provide user accounts, cross-device synchronization, payment features, or guaranteed notifications in the current version.
+
+## Pre-PR checks
+
+```bash
+npm ci
+npm run lint
+npm run build
+git status
+```
+
+The current branch has been checked successfully with `npm run lint` and `npm run build`.
+
+## Project status
+
+- Current branch: `main`
+- Branch is ahead of `origin/main` by 13 commits at the time of documentation
+- Remote: `https://github.com/inakirup/HuayToday.git`
